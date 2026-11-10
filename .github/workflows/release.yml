@@ -1,0 +1,60 @@
+name: Release WordPress plugin
+
+# Fully automatic: every push to main that changes the game or the plugin
+# builds a new version, publishes it as a GitHub release, and attaches the
+# plugin zips. WordPress sites with the plugin then update themselves.
+# Add [skip release] to a commit message to push without releasing.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'dict/**'
+      - 'images/**'
+      - 'wordpress-plugin/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: ${{ !contains(github.event.head_commit.message, '[skip release]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the version number
+        id: ver
+        run: |
+          BASE=$(grep -oP "define\( 'BRIGHTER_DAYS_VERSION', '\K[0-9]+\.[0-9]+" wordpress-plugin/brighter-days/brighter-days.php)
+          VERSION="${BASE}.${{ github.run_number }}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "New version: ${VERSION}"
+
+      - name: Build plugin zips
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          rm -rf build && mkdir build
+          cp -r wordpress-plugin/brighter-days build/brighter-days
+          sed -i "s/^ \* Version:.*/ * Version:           ${VERSION}/" build/brighter-days/brighter-days.php
+          sed -i "s/define( 'BRIGHTER_DAYS_VERSION', '[^']*' );/define( 'BRIGHTER_DAYS_VERSION', '${VERSION}' );/" build/brighter-days/brighter-days.php
+          sed -i "s/^Stable tag:.*/Stable tag: ${VERSION}/" build/brighter-days/readme.txt
+          mkdir build/brighter-days/game
+          cp -r index.html dict images build/brighter-days/game/
+          (cd build && zip -qr brighter-days-wordpress-plugin.zip brighter-days)
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          gh release create "v${VERSION}" \
+            build/brighter-days-wordpress-plugin.zip \
+            --title "Brighter Days ${VERSION}" \
+            --generate-notes \
+            --target "${{ github.sha }}"
