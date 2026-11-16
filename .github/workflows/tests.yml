@@ -34,4 +34,4 @@ jobs:
         with:
           node-version: '22'
       - name: Account unit tests (merge, adopt, detach, flows on the mock server)
-        run: node --test tests/js/
+        run: node --test tests/js/*.test.js

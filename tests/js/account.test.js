@@ -1,5 +1,5 @@
 'use strict';
-// Run with: node --test tests/js/
+// Run with: node --test tests/js/*.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

@@ -136,7 +136,7 @@ There is no online leaderboard or score table in the plugin yet. When the Exchan
 
 ## Testing
 - `php tests/php/run-tests.php`: real RSA keys, so valid tokens pass and forged, edited, expired and wrong-app tokens fail. Also covers the session, lockout, reset, linking and deletion flows. No WordPress needed.
-- `node --test tests/js/`: merge, adopt and detach, plus the account flows against the local mock server.
+- `node --test tests/js/*.test.js`: merge, adopt and detach, plus the account flows against the local mock server.
 - `node tests/mock-server.js`: runs the game at `http://localhost:8790/wp-content/plugins/brighter-days/game/` with a mock account server, for trying the screens. Reset codes print to the console.
 
 Never test against the live site. Both test suites run in GitHub Actions on every push, and a release only goes out if they pass.
