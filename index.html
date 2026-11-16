@@ -128,6 +128,11 @@ h3{margin:0 0 4px;font-size:20px}
 .modal h2{margin:0 0 6px;font-size:28px;text-align:center}
 .modal p{margin:6px 0;font-size:19px;line-height:1.3}
 .mbtns{display:flex;gap:8px;margin-top:12px}.mbtns .btn{flex:1}
+.acctbtns{display:flex;flex-direction:column;gap:8px;margin:10px 0 0}.acctbtns .btn{width:100%}.acprov{min-height:44px;display:flex;justify-content:center}.acprov .btn{width:100%}
+.orline{text-align:center;margin:8px 0 6px;opacity:.75}.aclinks{text-align:center}.aclinks a{color:inherit;text-decoration:underline;cursor:pointer}
+.acsec{margin:10px 0 0;padding-top:8px;border-top:1px solid rgba(201,162,74,.35)}.acsec>b{display:block;margin-bottom:4px;font-size:18px}
+.acrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0;font-size:18px;flex-wrap:wrap}.acrow .acprov{min-height:0}
+.acerr{color:var(--red);min-height:1em;margin:4px 0 0}.acok{color:#7fc06a}
 .thief{position:absolute;inset:0;z-index:20;display:none;background:radial-gradient(circle,rgba(150,25,12,.4),rgba(50,0,0,.9))}
 .thief.on{display:block}
 .thief h1{position:absolute;top:12%;left:0;right:0;text-align:center;margin:0;font-size:77px;color:#e2402c;text-shadow:4px 4px 0 #2a0805,-2px -2px 0 #f6c9a0;animation:shake .18s infinite}
@@ -569,6 +574,8 @@ button.fspine:hover,button.fspine:focus-visible{transform:translateY(-6px);outli
 <div class="pauseov" id="pauseOv" role="dialog" aria-label="Game paused"><h2>Paused</h2><p>Customers will wait at the window until you return.</p><button class="btn green" id="resumeBtn">Resume</button></div>
 <div class="modal" id="modal"><div class="parch" id="mbox"></div></div>
 
+<script src="js/account.js"></script>
+<script src="js/signin.js"></script>
 <script>
 (function(){
 'use strict';
@@ -776,7 +783,7 @@ function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(META));}cat
 function loadMeta(){try{const m=JSON.parse(localStorage.getItem(META_KEY)||'null');if(m&&m.active){META=Object.assign(META,m);return;}const old=localStorage.getItem(SAVE);if(old){localStorage.setItem(slotKey(1),old);let st=null;try{st=JSON.parse(old);}catch(e){}META.names[1]=autoName(st);META.played[1]=Date.now();}saveMeta();}catch(e){}}
 function readSlot(n){try{const t=localStorage.getItem(slotKey(n));if(!t)return null;const o=JSON.parse(t);return o&&o.v===1?o:null;}catch(e){return null;}}
 function load(){loadMeta();const o=readSlot(META.active);return o?migrate(o):null;}
-function save(){try{const n=META.active;localStorage.setItem(slotKey(n),JSON.stringify(S));if(!META.names[n])META.names[n]=autoName(S);META.played[n]=Date.now();META.user={username:S.username,uid:S.uid,ticker:S.ticker};META.prefs={muted:S.muted,music:S.music,sfxVol:S.sfxVol,musicVol:S.musicVol};saveMeta();}catch(e){}}
+function save(){try{const n=META.active;S.t=Date.now();localStorage.setItem(slotKey(n),JSON.stringify(S));if(!META.names[n])META.names[n]=autoName(S);META.played[n]=Date.now();META.user={username:S.username,uid:S.uid,ticker:S.ticker};META.prefs={muted:S.muted,music:S.music,sfxVol:S.sfxVol,musicVol:S.musicVol};saveMeta();}catch(e){}accUploadSoon();}
 const isMarket=()=>S.day%5===0;
 const SEASONS=[{n:'Spring',fx:{herb:.8,wool:.85,cheese:1.1}},{n:'Summer',fx:{ale:1.25,torch:.8,horseshoe:1.15,honey:.85,fish:1.1}},{n:'Autumn',fx:{bread:.8,leather:1.15,spices:1.1,cheese:.9,apple:.7}},{n:'Winter',fx:{torch:1.5,wool:1.4,ale:1.15,bread:1.2,herb:1.3,candles:1.5,lantern:1.3}}];
 const season=()=>SEASONS[Math.floor((S.day-1)/7)%4];
@@ -1537,14 +1544,132 @@ function renderExchange(){
  v.innerHTML=h;
 }
 $('v-exchange').addEventListener('click',e=>{const b=e.target.closest('[data-sort]');if(!b)return;const k=b.dataset.sort;if(lbSort.k===k)lbSort.d*=-1;else lbSort={k,d:(k==='tk'||k==='name'||k==='rank')?1:-1};renderExchange();});
+/* ---------- Player accounts (optional; served by the WordPress plugin) ---------- */
+var ACC=window.BDAccount||null,SIGN=window.BDSignin||null,ACFG=null,ASESS=ACC?ACC.loadSession():null,accT=null,accArgs=null;
+const PNAME={google:'Google',apple:'Apple',microsoft:'Microsoft'};
+function accReady(){return !!(ACC&&ACFG&&ACFG.enabled);}
+function accMethods(){const m=(ACFG&&ACFG.methods)||{};return ['google','apple','microsoft'].filter(k=>m[k]&&SIGN&&SIGN.can(k));}
+function accMsg(e){return(e&&e.message)||'Something went wrong. Try again.';}
+function accBusy(on){$('mbox').querySelectorAll('button,input').forEach(b=>{b.disabled=on;});}
+function accSetErr(t,ok){const e=$('acErr');if(e){e.textContent=t||'';e.classList.toggle('acok',!!ok);}}
+function accUploadSoon(){if(!ASESS||!ACC||accT)return;accT=setTimeout(accUpload,20000);}
+function accUpload(){
+ clearTimeout(accT);accT=null;if(!ASESS||!ACC||!S)return Promise.resolve();
+ return ACC.upload(S).then(j=>{ASESS=ACC.loadSession();if(j&&j.conflict){const newer=j.save&&(j.save.t||0)>(S.t||0);S=migrate(ACC.mergeSaves(S,j.save));save();if(newer){toast('Loading your newest progress from another device...');accUpload().then(()=>setTimeout(()=>location.reload(),400));}}},e=>{if(e&&e.code==='signed_out'){ASESS=null;renderAll();}});
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&accT)accUpload();});
+/** Merges this device with the account and takes on the account's player ID. */
+function accDone(j,after,msg){
+ const before=JSON.stringify(S);
+ const prof=ACC.adopt({player:ACC.playerId(),save:S},j);
+ ACC.setPlayerId(prof.player);ASESS=ACC.loadSession();accArgs=null;
+ const changed=!!(prof.save&&prof.save.v===1&&JSON.stringify(prof.save)!==before);
+ if(changed)S=migrate(prof.save);
+ $('modal').classList.remove('on');save();toast(msg);
+ if(changed){accUpload().then(()=>setTimeout(()=>location.reload(),500));return;}
+ accUpload();renderAll();
+ if(!S.username)signIn(true,after);else if(after)after();
+}
+/** Signing out or deleting keeps the shop here, as a new separate player. */
+function accDetach(msg,keepModal){
+ const prof=ACC.detach({player:ACC.playerId(),save:S});ACC.setPlayerId(prof.player);ASESS=null;clearTimeout(accT);accT=null;
+ if(!keepModal)$('modal').classList.remove('on');save();toast(msg);renderAll();
+}
+function accProvider(k,cred,after){
+ accSetErr('');accBusy(true);
+ ACC.signInWith(k,cred,ACC.playerId(),null,S).then(j=>accDone(j,after,'Signed in with '+PNAME[k]+'.'),e=>{accBusy(false);accSetErr(accMsg(e));});
+}
+function accButtons(after){
+ accMethods().forEach(k=>{const el=$('acP_'+k);if(!el)return;
+  if(k==='google')SIGN.googleButton(el,ACFG.methods.google,c=>accProvider('google',c,after),e=>{if(e&&e.code!=='cancelled')accSetErr(accMsg(e));});
+  else el.querySelector('button').onclick=()=>SIGN.signIn(k,ACFG.methods[k]).then(c=>accProvider(k,c,after),e=>{if(e&&e.code!=='cancelled')accSetErr(accMsg(e));});
+ });
+}
+function openAccount(mode,after){
+ if(!accReady())return;
+ if(ASESS)return openProfile();
+ mode=mode||'in';const ms=accMethods();
+ let h='<h2>'+(mode==='up'?'Create an account':mode==='forgot'?'Reset your password':'Sign in')+'</h2>';
+ if(mode==='forgot')h+='<p>Enter your account email and we\u2019ll send you a 6-digit code.</p><label>Email<input class="field" id="acEmail" type="email" autocomplete="email" maxlength="190"></label><div id="acCodeRow" style="display:none"><label>Code from the email<input class="field" id="acCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label><label>New password<input class="field" id="acPass" type="password" autocomplete="new-password" maxlength="200"></label></div>';
+ else h+='<p>'+(mode==='up'?'Your shop on this device comes with you, and is backed up to your account.':'Pick up your shop on any device. Progress on this device is kept and combined.')+'</p>'+(ms.length?'<div class="acctbtns">'+ms.map(k=>'<div class="acprov" id="acP_'+k+'">'+(k==='google'?'':'<button class="btn blue">Continue with '+PNAME[k]+'</button>')+'</div>').join('')+'</div><p class="mk orline">or use your email</p>':'')+'<label>Email<input class="field" id="acEmail" type="email" autocomplete="email" maxlength="190"></label><label>Password'+(mode==='up'?' (8 or more characters)':'')+'<input class="field" id="acPass" type="password" autocomplete="'+(mode==='up'?'new':'current')+'-password" maxlength="200"></label>';
+ h+='<p class="mk acerr" id="acErr"></p><p class="mk aclinks">'+(mode==='in'?'<a data-acm="up">Create an account</a> \u00b7 <a data-acm="forgot">Forgot password?</a>':'<a data-acm="in">I already have an account</a>')+'</p>';
+ modal(h,[{l:'Back',f:()=>{if(!S.username||accArgs)signIn(accArgs?accArgs[0]:true,after);}},{l:mode==='up'?'Create account':mode==='forgot'?'Send code':'Sign in',c:'green',keep:true,f:()=>accSubmit(mode,after)}]);
+ $('mbox').querySelectorAll('[data-acm]').forEach(a=>a.onclick=ev=>{ev.preventDefault();openAccount(a.dataset.acm,after);});
+ $('mbox').querySelectorAll('input').forEach(i=>i.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();accSubmit(mode,after);}}));
+ if(mode!=='forgot')accButtons(after);
+ setTimeout(()=>{const i=$('acEmail');if(i)i.focus();},60);
+}
+function accSubmit(mode,after){
+ const em=($('acEmail').value||'').trim(),pw=$('acPass')?$('acPass').value:'';accSetErr('');
+ if(mode==='forgot'){
+  const row=$('acCodeRow'),go=$('mbox').querySelector('.mbtns .green');
+  if(row.style.display==='none'){
+   if(!em){accSetErr('Enter your email.');return;}
+   accBusy(true);ACC.requestReset(em).then(()=>{accBusy(false);row.style.display='';if(go)go.textContent='Set new password';accSetErr('If that email has an account, a code is on its way. Check your inbox.',true);$('acCode').focus();},e=>{accBusy(false);accSetErr(accMsg(e));});
+   return;
+  }
+  const code=($('acCode').value||'').replace(/\D/g,'');
+  if(code.length!==6){accSetErr('Enter the 6-digit code from the email.');return;}
+  if(pw.length<8){accSetErr('Use at least 8 characters for your password.');return;}
+  accBusy(true);ACC.reset(em,code,pw).then(j=>accDone(j,after,'Password changed. You\u2019re signed in.'),e=>{accBusy(false);accSetErr(accMsg(e));});
+  return;
+ }
+ if(!em||!pw){accSetErr('Enter your email and password.');return;}
+ if(mode==='up'&&pw.length<8){accSetErr('Use at least 8 characters for your password.');return;}
+ accBusy(true);
+ (mode==='up'?ACC.register(em,pw,ACC.playerId(),S):ACC.login(em,pw)).then(j=>accDone(j,after,mode==='up'?'Account created. Your shop is backed up.':'Welcome back!'),e=>{accBusy(false);accSetErr(accMsg(e));});
+}
+function openProfile(){
+ if(!ASESS){openAccount();return;}
+ const a=ASESS.account,linked=a.providers||[],ms=accMethods();
+ const who=a.email?esc(a.email):'your '+linked.map(k=>PNAME[k]||k).join(' and ')+' account';
+ let h='<h2>Your account</h2><p>Signed in as <b>'+who+'</b>. Your shop is backed up to this account.</p>';
+ h+='<div class="acsec"><b>Ways to sign in</b>'+(a.hasPassword?'<div class="acrow"><span>Email and password</span></div>':'')+
+  linked.map(k=>'<div class="acrow"><span>'+(PNAME[k]||esc(k))+'</span><button class="mbtn2" data-unlink="'+esc(k)+'">Remove</button></div>').join('')+
+  ms.filter(k=>!linked.includes(k)).map(k=>'<div class="acrow"><span>Add '+PNAME[k]+'</span><div class="acprov" id="acP_'+k+'">'+(k==='google'?'':'<button class="mbtn2">Link</button>')+'</div></div>').join('')+'</div>';
+ h+='<div class="acsec"><b>'+(a.hasPassword?'Change email or password':'Add an email and password')+'</b>'+(a.hasPassword?'<label>Current password<input class="field" id="acCur" type="password" autocomplete="current-password" maxlength="200"></label>':'')+
+  '<label>Email<input class="field" id="acEmail" type="email" autocomplete="email" maxlength="190" value="'+esc(a.email||'')+'"></label><label>'+(a.hasPassword?'New password (leave blank to keep it)':'Password (8 or more characters)')+'<input class="field" id="acPass" type="password" autocomplete="new-password" maxlength="200"></label><button class="mbtn2" id="acSave">Save changes</button></div>';
+ h+='<p class="mk acerr" id="acErr"></p><div class="acsec"><div class="acrow"><button class="mbtn2" id="acOut">Sign out</button><button class="mbtn2 danger" id="acDel">Delete account</button></div></div>';
+ modal(h,[{l:'Close'}]);
+ $('mbox').querySelectorAll('[data-unlink]').forEach(b=>b.onclick=()=>{accBusy(true);ACC.unlink(b.dataset.unlink).then(()=>{ASESS=ACC.loadSession();openProfile();toast(PNAME[b.dataset.unlink]+' removed.');},e=>{accBusy(false);accSetErr(accMsg(e));});});
+ ms.filter(k=>!linked.includes(k)).forEach(k=>{const el=$('acP_'+k);if(!el)return;
+  const link=c=>{accBusy(true);ACC.signInWith(k,c,ACC.playerId(),ASESS.token,null).then(()=>{ASESS=ACC.loadSession();openProfile();toast(PNAME[k]+' linked. You can sign in with it now.');},e=>{accBusy(false);accSetErr(accMsg(e));});};
+  if(k==='google')SIGN.googleButton(el,ACFG.methods.google,link,e=>{if(e&&e.code!=='cancelled')accSetErr(accMsg(e));});
+  else el.querySelector('button').onclick=()=>SIGN.signIn(k,ACFG.methods[k]).then(link,e=>{if(e&&e.code!=='cancelled')accSetErr(accMsg(e));});
+ });
+ $('acSave').onclick=()=>{
+  const em=($('acEmail').value||'').trim().toLowerCase(),pw=$('acPass').value,cur=$('acCur')?$('acCur').value:'',o={};
+  if(pw)o.password=pw;if(em!==(a.email||''))o.email=em;if(cur)o.current=cur;
+  if(!o.password&&o.email==null){accSetErr('Nothing to change.');return;}
+  if(pw&&pw.length<8){accSetErr('Use at least 8 characters for your password.');return;}
+  if(a.hasPassword&&!cur){accSetErr('Enter your current password.');return;}
+  accBusy(true);ACC.setPassword(o).then(()=>{ASESS=ACC.loadSession();openProfile();toast('Account updated.');},e=>{accBusy(false);accSetErr(accMsg(e));});
+ };
+ $('acOut').onclick=()=>{accBusy(true);accUpload().then(()=>ACC.logout()).then(()=>accDetach('Signed out. Your shop stays on this device.'));};
+ $('acDel').onclick=()=>{
+  modal('<h2>Delete your account?</h2><p>This removes your account, its sign-in methods and the copy of your shop on our server. It can\u2019t be undone. Your shop stays on this device as a guest.</p><label>Type DELETE to confirm<input class="field" id="acDelIn" autocomplete="off" maxlength="10"></label><p class="mk acerr" id="acErr"></p>',
+   [{l:'Cancel',f:openProfile},{l:'Delete account',c:'red',keep:true,f:()=>{if($('acDelIn').value.trim()!=='DELETE'){accSetErr('Type DELETE in capital letters.');return;}accBusy(true);ACC.deleteAccount('DELETE').then(()=>accDetach('Your account was deleted.'),e=>{accBusy(false);accSetErr(accMsg(e));});}}]);
+  setTimeout(()=>{const i=$('acDelIn');if(i)i.focus();},60);
+ };
+}
+if(ACC)ACC.siteConfig().then(c=>{
+ ACFG=c;if(!accReady())return;
+ if(SIGN)SIGN.preload(c.methods);
+ if(accArgs&&$('modal').classList.contains('on')&&$('unameIn')){const v=$('unameIn').value;signIn(accArgs[0],accArgs[1]);if($('unameIn'))$('unameIn').value=v;}
+ if(ASESS)ACC.me().then(j=>{ASESS=ACC.loadSession();if(j.save&&S&&(j.save.t||0)>(S.t||0)){S=migrate(ACC.mergeSaves(S,j.save));save();accUpload().then(()=>location.reload());}else accUpload();renderAll();},e=>{if(e&&e.code==='signed_out')accDetach('You\u2019ve been signed out. Your shop stays on this device.',true);});
+ renderAll();
+});
 function signIn(first,after){
- const hasId=!!(DB&&USERID);
- modal('<h2>'+(first?'Sign in, shopkeeper':'Your shopkeeper name')+'</h2><p>'+(hasId?'You\u2019re signed in. Choose the name regulars will greet you by. It is also your listing on the Exchange.':'Choose the name regulars will greet you by. Online accounts and the Exchange are coming soon.')+'</p><label>Shopkeeper name<input class="field" id="unameIn" maxlength="16" autocomplete="nickname" value="'+esc(S.username||'')+'"></label><p class="mk" id="unameErr" style="color:var(--red);min-height:1em;margin:0"></p>'+(!first&&S.username&&hasId?'<p class="mk" style="margin:4px 0 0">Ticker symbol: '+esc(S.ticker)+'</p>':''),
-  [...(first?[]:[{l:'Cancel'}]),...(!first&&hasId?[{l:'Delist me',c:'red',keep:true,f:()=>{DB.collection('board').doc(USERID).delete().then(()=>{toast('Your shop was removed from the Exchange.');},()=>toast('Couldn\u2019t reach the Exchange.'));S.username='';S.ticker='';save();$('modal').classList.remove('on');renderAll();signIn(true);}}]:[]),{l:hasId?'Sign in':'Play as guest',c:'green',keep:true,f:()=>{
+ const hasId=!!(DB&&USERID),acc=accReady();accArgs=[first,after];
+ const lead=hasId?'You\u2019re signed in. Choose the name regulars will greet you by. It is also your listing on the Exchange.':acc?'Choose the name regulars will greet you by.':'Choose the name regulars will greet you by. Online accounts and the Exchange are coming soon.';
+ const accH=!acc||hasId?'':ASESS?'<p class="mk">Signed in as <b>'+esc(ASESS.account.email||'your account')+'</b>. <a class="aclink" id="acOpen" style="text-decoration:underline;cursor:pointer">Manage</a></p>':'<div class="acctbtns"><button class="btn blue" id="acOpen">Sign in or create an account</button></div><p class="mk orline">or play as guest</p>';
+ modal('<h2>'+(first?'Sign in, shopkeeper':'Your shopkeeper name')+'</h2><p>'+lead+'</p>'+accH+'<label>Shopkeeper name<input class="field" id="unameIn" maxlength="16" autocomplete="nickname" value="'+esc(S.username||'')+'"></label><p class="mk" id="unameErr" style="color:var(--red);min-height:1em;margin:0"></p>'+(!first&&S.username&&hasId?'<p class="mk" style="margin:4px 0 0">Ticker symbol: '+esc(S.ticker)+'</p>':''),
+  [...(first?[]:[{l:'Cancel'}]),...(!first&&hasId?[{l:'Delist me',c:'red',keep:true,f:()=>{DB.collection('board').doc(USERID).delete().then(()=>{toast('Your shop was removed from the Exchange.');},()=>toast('Couldn\u2019t reach the Exchange.'));S.username='';S.ticker='';save();$('modal').classList.remove('on');renderAll();signIn(true);}}]:[]),{l:hasId?'Sign in':ASESS?'Continue':'Play as guest',c:'green',keep:true,f:()=>{
    const n=($('unameIn').value||'').trim().replace(/\s+/g,' ');
    if(n.length<2||!/^[A-Za-z0-9 _'.-]+$/.test(n)){$('unameErr').textContent='Use 2 to 16 letters, numbers, spaces or _ \' . -';return;}
-   const changed=n!==S.username;S.username=n;if(changed||!S.ticker)S.ticker=makeTicker(n);S.uid=USERID;save();$('modal').classList.remove('on');
+   const changed=n!==S.username;S.username=n;if(changed||!S.ticker)S.ticker=makeTicker(n);S.uid=USERID;accArgs=null;save();$('modal').classList.remove('on');
    if(hasId)postBoard(true);toast(hasId?'Welcome, '+n+'! Your shop is listed as '+S.ticker+'.':'Welcome, '+n+'!');renderAll();if(after)after();}}]);
+ if($('acOpen'))$('acOpen').onclick=()=>openAccount('in',after);
  setTimeout(()=>{const i=$('unameIn');if(i&&!first)i.focus();},60);
 }
 (function initCaps(n){
@@ -2363,6 +2488,7 @@ function renderMenu(){
    return '<div class="slotcard'+(cur?' cur':'')+'"><div class="slotinfo"><b>Save '+n+': '+esc(nm||autoName(st))+'</b><small>Day '+st.day+', '+ERAS[eraOf(st.day)].n+', '+fmtN(st.purse)+'g'+(when?'. Last played '+when:'')+'</small></div><div class="slotbtns">'+(cur?'<span class="slotnow">Playing now</span>':'<button class="mbtn2 on" data-m="sload" data-n="'+n+'">Load</button>')+'<button class="mbtn2" data-m="sren" data-n="'+n+'">Rename</button>'+(cur?'':'<button class="mbtn2 danger" data-m="sdel" data-n="'+n+'">Delete</button>')+'</div></div>';}).join('')+'<p class="mk" style="margin:6px 0 0;color:#6a4a2a">Saves are kept on this device. The Exchange shows whichever save you played last.</p></div></details>';
  h+='<details class="tocg"><summary><span class="gname">Game</span></summary><div style="padding:4px 12px 10px;background:#f8eed4">'+
   '<div class="mrow"><label>Shopkeeper name: <b>'+esc(S.username||'not set')+'</b></label><button class="mbtn2" data-m="name">Change name</button></div>'+
+  (accReady()?'<div class="mrow"><label>Account: <b>'+(ASESS?esc(ASESS.account.email||'signed in'):'guest')+'</b></label><button class="mbtn2" data-m="acct">'+(ASESS?'Manage':'Sign in')+'</button></div>':'')+
   '<div class="mrow"><label>Found a problem?</label><button class="mbtn2" data-m="bug">Report a bug</button></div>'+
   '<div class="mrow"><label>Screen orientation tip</label><button class="mbtn2" data-m="rot">Show it again</button></div>'+
   '<div class="mrow"><label>Title screen</label><button class="mbtn2" data-m="cover">Show title screen</button></div>'+
@@ -2382,6 +2508,7 @@ $('menuOv').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if
  else if(m==='music'){S.music=!S.music;save();if(S.music)tone(1,.01,'sine',.0001);renderMenu();}
  else if(m==='test'){if(muted){toast('Sound is muted.');return;}sfx('deal');}
  else if(m==='name'){closeMenu();signIn(false);}
+ else if(m==='acct'){closeMenu();accArgs=null;openAccount('in');}
  else if(m==='bug'){closeMenu();openBug();}
  else if(m==='rot'){try{localStorage.removeItem('bd_portrait_ok');}catch(e){}rotDismissed=false;closeMenu();checkOrient();if(innerHeight<=innerWidth)toast('The tip appears when you hold your device upright.');}
  else if(m==='cover'){closeMenu();startCover();}

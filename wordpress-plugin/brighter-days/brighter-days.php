@@ -4,7 +4,7 @@
  * Plugin URI:        https://github.com/theanarchyram/BrighterDays
  * Description:       Adds the Brighter Days shopkeeper game to your site. Use [brighter_days] to embed the game and [brighter_days_banner] for the animated ad banner. The game ships inside the plugin and updates itself from GitHub releases.
  * Update URI:        https://github.com/theanarchyram/BrighterDays
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            LeverOne Studios
@@ -17,8 +17,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'BRIGHTER_DAYS_VERSION', '1.1.0' );
+define( 'BRIGHTER_DAYS_VERSION', '1.2.0' );
 define( 'BRIGHTER_DAYS_REPO', 'theanarchyram/BrighterDays' );
+
+require_once __DIR__ . '/includes/id-tokens.php';
+require_once __DIR__ . '/includes/accounts.php';
+
+register_activation_hook( __FILE__, 'bd_accounts_maybe_install' );
+register_deactivation_hook(
+	__FILE__,
+	function () {
+		wp_clear_scheduled_hook( 'brighter_days_purge_sessions' );
+	}
+);
 
 function brighter_days_is_bundled() {
 	return file_exists( plugin_dir_path( __FILE__ ) . 'game/index.html' );
@@ -237,6 +248,44 @@ function brighter_days_register_settings() {
 }
 add_action( 'admin_init', 'brighter_days_register_settings' );
 
+function brighter_days_register_account_settings() {
+	register_setting(
+		'brighter_days',
+		'brighter_days_accounts',
+		array(
+			'type'              => 'string',
+			'default'           => '0',
+			'sanitize_callback' => function ( $v ) {
+				return '1' === (string) $v ? '1' : '0';
+			},
+		)
+	);
+	foreach ( array( 'brighter_days_google_ids', 'brighter_days_apple_ids', 'brighter_days_microsoft_ids' ) as $opt ) {
+		register_setting(
+			'brighter_days',
+			$opt,
+			array(
+				'type'              => 'string',
+				'default'           => '',
+				'sanitize_callback' => 'brighter_days_clean_id_list',
+			)
+		);
+	}
+}
+add_action( 'admin_init', 'brighter_days_register_account_settings' );
+
+/** Keeps a comma-separated list of client IDs, dropping anything that isn't one. */
+function brighter_days_clean_id_list( $v ) {
+	$out = array();
+	foreach ( explode( ',', (string) $v ) as $id ) {
+		$id = trim( $id );
+		if ( '' !== $id && preg_match( '/^[A-Za-z0-9._:-]{1,200}$/', $id ) ) {
+			$out[] = $id;
+		}
+	}
+	return implode( ',', array_unique( $out ) );
+}
+
 function brighter_days_admin_menu() {
 	add_options_page( 'Brighter Days', 'Brighter Days', 'manage_options', 'brighter-days', 'brighter_days_settings_page' );
 }
@@ -259,6 +308,33 @@ function brighter_days_settings_page() {
 						<label><input type="checkbox" name="brighter_days_auto_update" value="1" <?php checked( get_option( 'brighter_days_auto_update', '1' ), '1' ); ?>> Install new versions automatically</label>
 						<p class="description">New versions come from the releases on <a href="https://github.com/<?php echo esc_attr( BRIGHTER_DAYS_REPO ); ?>/releases" target="_blank" rel="noopener">GitHub</a>.</p>
 					</td>
+				</tr>
+			</table>
+			<h2>Player accounts</h2>
+			<p>Optional. The game always stays playable as a guest. Each sign-in button shows only when its ID is filled in. Setup steps are in <a href="https://github.com/<?php echo esc_attr( BRIGHTER_DAYS_REPO ); ?>/blob/main/docs/ACCOUNTS.md" target="_blank" rel="noopener">docs/ACCOUNTS.md</a>.</p>
+			<table class="form-table" role="presentation">
+				<tr>
+					<th scope="row">Accounts</th>
+					<td>
+						<input type="hidden" name="brighter_days_accounts" value="0">
+						<label><input type="checkbox" name="brighter_days_accounts" value="1" <?php checked( get_option( 'brighter_days_accounts', '0' ), '1' ); ?>> Let players sign in (email and password is always offered while this is on)</label>
+						<p class="description">Accounts so far: <strong><?php echo esc_html( number_format_i18n( bd_store()->count_accounts() ) ); ?></strong></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="bd-google">Google client IDs</label></th>
+					<td><input type="text" class="large-text code" id="bd-google" name="brighter_days_google_ids" value="<?php echo esc_attr( get_option( 'brighter_days_google_ids', '' ) ); ?>">
+					<p class="description">Web client ID first, then any iOS or Android client IDs, separated by commas.</p></td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="bd-apple">Sign in with Apple</label></th>
+					<td><input type="text" class="large-text code" id="bd-apple" name="brighter_days_apple_ids" value="<?php echo esc_attr( get_option( 'brighter_days_apple_ids', '' ) ); ?>">
+					<p class="description">Services ID first, then any iOS bundle IDs, separated by commas.</p></td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="bd-ms">Microsoft client IDs</label></th>
+					<td><input type="text" class="large-text code" id="bd-ms" name="brighter_days_microsoft_ids" value="<?php echo esc_attr( get_option( 'brighter_days_microsoft_ids', '' ) ); ?>">
+					<p class="description">Application (client) ID from the Azure app registration.</p></td>
 				</tr>
 			</table>
 			<?php submit_button(); ?>

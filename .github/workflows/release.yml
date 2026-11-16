@@ -9,6 +9,8 @@ on:
     branches: [main]
     paths:
       - 'index.html'
+      - 'auth-callback.html'
+      - 'js/**'
       - 'dict/**'
       - 'images/**'
       - 'wordpress-plugin/**'
@@ -22,7 +24,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   release:
+    needs: tests
     if: ${{ !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-latest
     steps:
@@ -45,7 +51,7 @@ jobs:
           sed -i "s/define( 'BRIGHTER_DAYS_VERSION', '[^']*' );/define( 'BRIGHTER_DAYS_VERSION', '${VERSION}' );/" build/brighter-days/brighter-days.php
           sed -i "s/^Stable tag:.*/Stable tag: ${VERSION}/" build/brighter-days/readme.txt
           mkdir build/brighter-days/game
-          cp -r index.html dict images build/brighter-days/game/
+          cp -r index.html auth-callback.html js dict images build/brighter-days/game/
           (cd build && zip -qr brighter-days-wordpress-plugin.zip brighter-days)
 
       - name: Publish the release
