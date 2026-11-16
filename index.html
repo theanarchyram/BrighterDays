@@ -128,10 +128,10 @@ h3{margin:0 0 4px;font-size:20px}
 .modal h2{margin:0 0 6px;font-size:28px;text-align:center}
 .modal p{margin:6px 0;font-size:19px;line-height:1.3}
 .mbtns{display:flex;gap:8px;margin-top:12px}.mbtns .btn{flex:1}
-.acctbtns{display:flex;flex-direction:column;gap:8px;margin:10px 0 0}.acctbtns .btn{width:100%}.acprov{min-height:44px;display:flex;justify-content:center}.acprov .btn{width:100%}
+.acctbtns{display:flex;flex-direction:column;gap:8px;margin:10px 0 0}.acctbtns .btn{width:100%}
 .orline{text-align:center;margin:8px 0 6px;opacity:.75}.aclinks{text-align:center}.aclinks a{color:inherit;text-decoration:underline;cursor:pointer}
 .acsec{margin:10px 0 0;padding-top:8px;border-top:1px solid rgba(201,162,74,.35)}.acsec>b{display:block;margin-bottom:4px;font-size:18px}
-.acrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0;font-size:18px;flex-wrap:wrap}.acrow .acprov{min-height:0}
+.acrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0;font-size:18px;flex-wrap:wrap}
 .acerr{color:var(--red);min-height:1em;margin:4px 0 0}.acok{color:#7fc06a}
 .thief{position:absolute;inset:0;z-index:20;display:none;background:radial-gradient(circle,rgba(150,25,12,.4),rgba(50,0,0,.9))}
 .thief.on{display:block}
@@ -575,7 +575,6 @@ button.fspine:hover,button.fspine:focus-visible{transform:translateY(-6px);outli
 <div class="modal" id="modal"><div class="parch" id="mbox"></div></div>
 
 <script src="js/account.js"></script>
-<script src="js/signin.js"></script>
 <script>
 (function(){
 'use strict';
@@ -1545,10 +1544,8 @@ function renderExchange(){
 }
 $('v-exchange').addEventListener('click',e=>{const b=e.target.closest('[data-sort]');if(!b)return;const k=b.dataset.sort;if(lbSort.k===k)lbSort.d*=-1;else lbSort={k,d:(k==='tk'||k==='name'||k==='rank')?1:-1};renderExchange();});
 /* ---------- Player accounts (optional; served by the WordPress plugin) ---------- */
-var ACC=window.BDAccount||null,SIGN=window.BDSignin||null,ACFG=null,ASESS=ACC?ACC.loadSession():null,accT=null,accArgs=null;
-const PNAME={google:'Google',apple:'Apple',microsoft:'Microsoft'};
+var ACC=window.BDAccount||null,ACFG=null,ASESS=ACC?ACC.loadSession():null,accT=null,accArgs=null;
 function accReady(){return !!(ACC&&ACFG&&ACFG.enabled);}
-function accMethods(){const m=(ACFG&&ACFG.methods)||{};return ['google','apple','microsoft'].filter(k=>m[k]&&SIGN&&SIGN.can(k));}
 function accMsg(e){return(e&&e.message)||'Something went wrong. Try again.';}
 function accBusy(on){$('mbox').querySelectorAll('button,input').forEach(b=>{b.disabled=on;});}
 function accSetErr(t,ok){const e=$('acErr');if(e){e.textContent=t||'';e.classList.toggle('acok',!!ok);}}
@@ -1575,28 +1572,17 @@ function accDetach(msg,keepModal){
  const prof=ACC.detach({player:ACC.playerId(),save:S});ACC.setPlayerId(prof.player);ASESS=null;clearTimeout(accT);accT=null;
  if(!keepModal)$('modal').classList.remove('on');save();toast(msg);renderAll();
 }
-function accProvider(k,cred,after){
- accSetErr('');accBusy(true);
- ACC.signInWith(k,cred,ACC.playerId(),null,S).then(j=>accDone(j,after,'Signed in with '+PNAME[k]+'.'),e=>{accBusy(false);accSetErr(accMsg(e));});
-}
-function accButtons(after){
- accMethods().forEach(k=>{const el=$('acP_'+k);if(!el)return;
-  if(k==='google')SIGN.googleButton(el,ACFG.methods.google,c=>accProvider('google',c,after),e=>{if(e&&e.code!=='cancelled')accSetErr(accMsg(e));});
-  else el.querySelector('button').onclick=()=>SIGN.signIn(k,ACFG.methods[k]).then(c=>accProvider(k,c,after),e=>{if(e&&e.code!=='cancelled')accSetErr(accMsg(e));});
- });
-}
 function openAccount(mode,after){
  if(!accReady())return;
  if(ASESS)return openProfile();
- mode=mode||'in';const ms=accMethods();
+ mode=mode||'in';
  let h='<h2>'+(mode==='up'?'Create an account':mode==='forgot'?'Reset your password':'Sign in')+'</h2>';
  if(mode==='forgot')h+='<p>Enter your account email and we\u2019ll send you a 6-digit code.</p><label>Email<input class="field" id="acEmail" type="email" autocomplete="email" maxlength="190"></label><div id="acCodeRow" style="display:none"><label>Code from the email<input class="field" id="acCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label><label>New password<input class="field" id="acPass" type="password" autocomplete="new-password" maxlength="200"></label></div>';
- else h+='<p>'+(mode==='up'?'Your shop on this device comes with you, and is backed up to your account.':'Pick up your shop on any device. Progress on this device is kept and combined.')+'</p>'+(ms.length?'<div class="acctbtns">'+ms.map(k=>'<div class="acprov" id="acP_'+k+'">'+(k==='google'?'':'<button class="btn blue">Continue with '+PNAME[k]+'</button>')+'</div>').join('')+'</div><p class="mk orline">or use your email</p>':'')+'<label>Email<input class="field" id="acEmail" type="email" autocomplete="email" maxlength="190"></label><label>Password'+(mode==='up'?' (8 or more characters)':'')+'<input class="field" id="acPass" type="password" autocomplete="'+(mode==='up'?'new':'current')+'-password" maxlength="200"></label>';
+ else h+='<p>'+(mode==='up'?'Your shop on this device comes with you, and is backed up to your account.':'Pick up your shop on any device. Progress on this device is kept and combined.')+'</p><label>Email<input class="field" id="acEmail" type="email" autocomplete="email" maxlength="190"></label><label>Password'+(mode==='up'?' (8 or more characters)':'')+'<input class="field" id="acPass" type="password" autocomplete="'+(mode==='up'?'new':'current')+'-password" maxlength="200"></label>';
  h+='<p class="mk acerr" id="acErr"></p><p class="mk aclinks">'+(mode==='in'?'<a data-acm="up">Create an account</a> \u00b7 <a data-acm="forgot">Forgot password?</a>':'<a data-acm="in">I already have an account</a>')+'</p>';
  modal(h,[{l:'Back',f:()=>{if(!S.username||accArgs)signIn(accArgs?accArgs[0]:true,after);}},{l:mode==='up'?'Create account':mode==='forgot'?'Send code':'Sign in',c:'green',keep:true,f:()=>accSubmit(mode,after)}]);
  $('mbox').querySelectorAll('[data-acm]').forEach(a=>a.onclick=ev=>{ev.preventDefault();openAccount(a.dataset.acm,after);});
  $('mbox').querySelectorAll('input').forEach(i=>i.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();accSubmit(mode,after);}}));
- if(mode!=='forgot')accButtons(after);
  setTimeout(()=>{const i=$('acEmail');if(i)i.focus();},60);
 }
 function accSubmit(mode,after){
@@ -1621,40 +1607,29 @@ function accSubmit(mode,after){
 }
 function openProfile(){
  if(!ASESS){openAccount();return;}
- const a=ASESS.account,linked=a.providers||[],ms=accMethods();
- const who=a.email?esc(a.email):'your '+linked.map(k=>PNAME[k]||k).join(' and ')+' account';
- let h='<h2>Your account</h2><p>Signed in as <b>'+who+'</b>. Your shop is backed up to this account.</p>';
- h+='<div class="acsec"><b>Ways to sign in</b>'+(a.hasPassword?'<div class="acrow"><span>Email and password</span></div>':'')+
-  linked.map(k=>'<div class="acrow"><span>'+(PNAME[k]||esc(k))+'</span><button class="mbtn2" data-unlink="'+esc(k)+'">Remove</button></div>').join('')+
-  ms.filter(k=>!linked.includes(k)).map(k=>'<div class="acrow"><span>Add '+PNAME[k]+'</span><div class="acprov" id="acP_'+k+'">'+(k==='google'?'':'<button class="mbtn2">Link</button>')+'</div></div>').join('')+'</div>';
- h+='<div class="acsec"><b>'+(a.hasPassword?'Change email or password':'Add an email and password')+'</b>'+(a.hasPassword?'<label>Current password<input class="field" id="acCur" type="password" autocomplete="current-password" maxlength="200"></label>':'')+
-  '<label>Email<input class="field" id="acEmail" type="email" autocomplete="email" maxlength="190" value="'+esc(a.email||'')+'"></label><label>'+(a.hasPassword?'New password (leave blank to keep it)':'Password (8 or more characters)')+'<input class="field" id="acPass" type="password" autocomplete="new-password" maxlength="200"></label><button class="mbtn2" id="acSave">Save changes</button></div>';
+ const a=ASESS.account;
+ let h='<h2>Your account</h2><p>Signed in as <b>'+esc(a.email||'')+'</b>. Your shop is backed up to this account.</p>';
+ h+='<div class="acsec"><b>Change email or password</b><label>Current password<input class="field" id="acCur" type="password" autocomplete="current-password" maxlength="200"></label>'+
+  '<label>Email<input class="field" id="acEmail" type="email" autocomplete="email" maxlength="190" value="'+esc(a.email||'')+'"></label><label>New password (leave blank to keep it)<input class="field" id="acPass" type="password" autocomplete="new-password" maxlength="200"></label><button class="mbtn2" id="acSave">Save changes</button></div>';
  h+='<p class="mk acerr" id="acErr"></p><div class="acsec"><div class="acrow"><button class="mbtn2" id="acOut">Sign out</button><button class="mbtn2 danger" id="acDel">Delete account</button></div></div>';
  modal(h,[{l:'Close'}]);
- $('mbox').querySelectorAll('[data-unlink]').forEach(b=>b.onclick=()=>{accBusy(true);ACC.unlink(b.dataset.unlink).then(()=>{ASESS=ACC.loadSession();openProfile();toast(PNAME[b.dataset.unlink]+' removed.');},e=>{accBusy(false);accSetErr(accMsg(e));});});
- ms.filter(k=>!linked.includes(k)).forEach(k=>{const el=$('acP_'+k);if(!el)return;
-  const link=c=>{accBusy(true);ACC.signInWith(k,c,ACC.playerId(),ASESS.token,null).then(()=>{ASESS=ACC.loadSession();openProfile();toast(PNAME[k]+' linked. You can sign in with it now.');},e=>{accBusy(false);accSetErr(accMsg(e));});};
-  if(k==='google')SIGN.googleButton(el,ACFG.methods.google,link,e=>{if(e&&e.code!=='cancelled')accSetErr(accMsg(e));});
-  else el.querySelector('button').onclick=()=>SIGN.signIn(k,ACFG.methods[k]).then(link,e=>{if(e&&e.code!=='cancelled')accSetErr(accMsg(e));});
- });
  $('acSave').onclick=()=>{
   const em=($('acEmail').value||'').trim().toLowerCase(),pw=$('acPass').value,cur=$('acCur')?$('acCur').value:'',o={};
   if(pw)o.password=pw;if(em!==(a.email||''))o.email=em;if(cur)o.current=cur;
   if(!o.password&&o.email==null){accSetErr('Nothing to change.');return;}
   if(pw&&pw.length<8){accSetErr('Use at least 8 characters for your password.');return;}
-  if(a.hasPassword&&!cur){accSetErr('Enter your current password.');return;}
+  if(!cur){accSetErr('Enter your current password.');return;}
   accBusy(true);ACC.setPassword(o).then(()=>{ASESS=ACC.loadSession();openProfile();toast('Account updated.');},e=>{accBusy(false);accSetErr(accMsg(e));});
  };
  $('acOut').onclick=()=>{accBusy(true);accUpload().then(()=>ACC.logout()).then(()=>accDetach('Signed out. Your shop stays on this device.'));};
  $('acDel').onclick=()=>{
-  modal('<h2>Delete your account?</h2><p>This removes your account, its sign-in methods and the copy of your shop on our server. It can\u2019t be undone. Your shop stays on this device as a guest.</p><label>Type DELETE to confirm<input class="field" id="acDelIn" autocomplete="off" maxlength="10"></label><p class="mk acerr" id="acErr"></p>',
+  modal('<h2>Delete your account?</h2><p>This removes your account and the copy of your shop on our server. It can\u2019t be undone. Your shop stays on this device as a guest.</p><label>Type DELETE to confirm<input class="field" id="acDelIn" autocomplete="off" maxlength="10"></label><p class="mk acerr" id="acErr"></p>',
    [{l:'Cancel',f:openProfile},{l:'Delete account',c:'red',keep:true,f:()=>{if($('acDelIn').value.trim()!=='DELETE'){accSetErr('Type DELETE in capital letters.');return;}accBusy(true);ACC.deleteAccount('DELETE').then(()=>accDetach('Your account was deleted.'),e=>{accBusy(false);accSetErr(accMsg(e));});}}]);
   setTimeout(()=>{const i=$('acDelIn');if(i)i.focus();},60);
  };
 }
 if(ACC)ACC.siteConfig().then(c=>{
  ACFG=c;if(!accReady())return;
- if(SIGN)SIGN.preload(c.methods);
  if(accArgs&&$('modal').classList.contains('on')&&$('unameIn')){const v=$('unameIn').value;signIn(accArgs[0],accArgs[1]);if($('unameIn'))$('unameIn').value=v;}
  if(ASESS)ACC.me().then(j=>{ASESS=ACC.loadSession();if(j.save&&S&&(j.save.t||0)>(S.t||0)){S=migrate(ACC.mergeSaves(S,j.save));save();accUpload().then(()=>location.reload());}else accUpload();renderAll();},e=>{if(e&&e.code==='signed_out')accDetach('You\u2019ve been signed out. Your shop stays on this device.',true);});
  renderAll();

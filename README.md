@@ -22,9 +22,13 @@ python3 -m http.server 8000
 ```
 Then open http://localhost:8000. The dictionary needs a web server to load.
 
+## Accounts
+
+When played through the WordPress plugin, players can create an account in the game with an email and password, which backs up their shop and carries it between devices. Guests can always play without one. See [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
+
 ## Coming later
 
-These need a backend and are on the deployment task list: online accounts (Google, Microsoft, email, username and password), the Exchange leaderboard, sending bug reports, and cloud saves. Saves currently stay on each device, in three slots.
+These are on the deployment task list: the Exchange leaderboard and sending bug reports. Guest saves stay on each device, in three slots.
 
 ## Credits
 

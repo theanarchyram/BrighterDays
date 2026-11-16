@@ -102,20 +102,13 @@
   function login(email, password) {
     return call('/account/login', { email: email, password: password }).then(signedIn);
   }
-  /** Signs in (or, with a token, links) using a provider's ID token. */
-  function signInWith(provider, credential, player, tok, save) {
-    var body = { provider: provider, credential: credential, player: player, save: save || null };
-    if (tok) body.token = tok;
-    return call('/account/provider', body).then(signedIn);
-  }
   function me() { return authed('/account/me').then(signedIn); }
   function logout() {
     var t = token();
     saveSession(null);
     return t ? call('/account/logout', { token: t }).catch(function () { return { ok: true }; }) : Promise.resolve({ ok: true });
   }
-  function unlink(provider) { return authed('/account/unlink', { provider: provider }).then(signedIn); }
-  /** opts: { password, current, email }, any of them. */
+  /** opts: { current, password, email }. The current password is always needed. */
   function setPassword(opts) {
     var body = {};
     if (opts.password) body.password = opts.password;
@@ -144,8 +137,8 @@
   function siteConfig() {
     if (!cfg) {
       cfg = call('/config', null, 'GET').then(function (j) {
-        return { enabled: !!j.enabled, methods: j.methods || {} };
-      }, function () { return { enabled: false, methods: {} }; });
+        return { enabled: !!j.enabled };
+      }, function () { return { enabled: false }; });
     }
     return cfg;
   }
@@ -213,8 +206,7 @@
   return {
     apiBase: apiBase, loadSession: loadSession, saveSession: saveSession,
     playerId: playerId, setPlayerId: setPlayerId, newPlayerId: newPlayerId,
-    register: register, login: login, signInWith: signInWith, me: me, logout: logout,
-    unlink: unlink, setPassword: setPassword, requestReset: requestReset, reset: reset,
+    register: register, login: login, me: me, logout: logout, setPassword: setPassword, requestReset: requestReset, reset: reset,
     deleteAccount: deleteAccount, upload: upload, siteConfig: siteConfig,
     mergeSaves: mergeSaves, adopt: adopt, detach: detach
   };

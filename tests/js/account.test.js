@@ -14,7 +14,7 @@ const { start } = require('../mock-server.js');
 let srv, A;
 
 test.before(async () => {
-  srv = await start({ port: 0, methods: { google: 'mock-google-client' } });
+  srv = await start({ port: 0 });
   globalThis.BD_API = 'http://127.0.0.1:' + srv.port + '/?rest_route=/brighter-days/v1';
   A = require('../../js/account.js');
 });
@@ -107,11 +107,18 @@ test('player ID is created once and kept', () => {
 
 /* ---------- Flows against the mock server ---------- */
 
-test('config reports the methods that are set up', async () => {
-  const c = await A.siteConfig();
-  assert.equal(c.enabled, true);
-  assert.equal(c.methods.password, true);
-  assert.equal(c.methods.google, 'mock-google-client');
+test('config says accounts are on, with no other sign-in methods', async () => {
+  assert.deepEqual(await A.siteConfig(), { enabled: true });
+  assert.equal(A.signInWith, undefined);
+  assert.equal(A.unlink, undefined);
+});
+
+test('accounts are off when the game is not served by the plugin', () => {
+  const saved = globalThis.BD_API;
+  delete globalThis.BD_API;
+  assert.equal(A.apiBase({ origin: 'https://theanarchyram.github.io', pathname: '/BrighterDays/' }), null);
+  assert.equal(A.apiBase({ origin: 'https://alfredwill.com', pathname: '/wp-content/plugins/brighter-days/game/' }), 'https://alfredwill.com/?rest_route=/brighter-days/v1');
+  globalThis.BD_API = saved;
 });
 
 test('register, upload, sign in elsewhere, conflict, sign out', async () => {
@@ -119,7 +126,7 @@ test('register, upload, sign in elsewhere, conflict, sign out', async () => {
   const r = await A.register('Shop@Example.com', 'longenough', A.playerId(), s1);
   assert.match(r.token, /^[0-9a-f]{64}$/);
   assert.equal(r.account.email, 'shop@example.com');
-  assert.equal(r.account.hasPassword, true);
+  assert.deepEqual(Object.keys(r.account).sort(), ['created', 'email', 'player']);
   const stored = JSON.parse(mem.get('bd_session'));
   assert.equal(stored.token, r.token);
   assert.ok(!JSON.stringify(s1).includes(r.token), 'token never goes into the save');
@@ -173,22 +180,22 @@ test('password reset signs out every other device', async () => {
   assert.ok((await A.login('reset@example.com', 'secondpass1')).token);
 });
 
-test('provider sign-in, linking, and the last-method rule', async () => {
-  const r = await A.signInWith('google', 'mock:google:sub-1:g@example.com', A.playerId(), null, save(1, 1));
-  assert.deepEqual(r.account.providers, ['google']);
-  assert.equal(r.account.email, 'g@example.com');
-  await assert.rejects(A.unlink('google'), { code: 'last_method' });
-  await A.setPassword({ password: 'nowapassword' });
-  const u = await A.unlink('google');
-  assert.deepEqual(u.account.providers, []);
-  // Re-link, then refuse linking an identity owned by another account.
-  await A.signInWith('google', 'mock:google:sub-1:g@example.com', null, A.loadSession().token, null);
-  const mine = A.loadSession();
+test('changing email and password needs the current password', async () => {
+  await A.register('change@example.com', 'firstpass1', 'p_changeplay1', null);
+  const here = A.loadSession();
   mem.clear();
-  await A.signInWith('google', 'mock:google:sub-2:', A.playerId(), null, null);
-  await assert.rejects(A.signInWith('google', 'mock:google:sub-1:', null, A.loadSession().token, null), { code: 'linked_elsewhere' });
-  mem.set('bd_session', JSON.stringify(mine));
-  assert.deepEqual((await A.me()).account.providers, ['google']);
+  await A.login('change@example.com', 'firstpass1');
+  const other = A.loadSession();
+  mem.set('bd_session', JSON.stringify(here));
+  await assert.rejects(A.setPassword({ password: 'secondpass1' }), { code: 'current' });
+  await assert.rejects(A.setPassword({ password: 'secondpass1', current: 'wrong' }), { code: 'current' });
+  const r = await A.setPassword({ current: 'firstpass1', email: 'moved@example.com', password: 'secondpass1' });
+  assert.equal(r.account.email, 'moved@example.com');
+  assert.equal(A.loadSession().account.email, 'moved@example.com');
+  mem.set('bd_session', JSON.stringify(other));
+  await assert.rejects(A.me(), { code: 'signed_out' });
+  mem.clear();
+  assert.ok((await A.login('moved@example.com', 'secondpass1')).token);
 });
 
 test('delete needs DELETE and removes the account', async () => {

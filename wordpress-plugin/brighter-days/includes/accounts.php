@@ -1,6 +1,6 @@
 <?php
 /**
- * Optional player accounts for Brighter Days.
+ * Optional player accounts for Brighter Days (email and password only).
  *
  * Every device has an anonymous player ID and a local save. An account owns
  * exactly one player ID and keeps a server copy of the save. All account
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'BD_ACC_DB_VERSION', '1' );
+define( 'BD_ACC_DB_VERSION', '2' );
 define( 'BD_ACC_NS', 'brighter-days/v1' );
 define( 'BD_SESSION_TTL', 120 * DAY_IN_SECONDS );
 define( 'BD_SAVE_MAX', 300 * 1024 );
@@ -28,14 +28,12 @@ define( 'BD_ROUTE_PER_MIN', 30 );
 class BD_WP_Account_Store {
 	private $db;
 	private $a;
-	private $i;
 	private $s;
 
 	public function __construct() {
 		global $wpdb;
 		$this->db = $wpdb;
 		$this->a  = $wpdb->prefix . 'bd_accounts';
-		$this->i  = $wpdb->prefix . 'bd_identities';
 		$this->s  = $wpdb->prefix . 'bd_sessions';
 	}
 
@@ -45,8 +43,8 @@ class BD_WP_Account_Store {
 		dbDelta(
 			"CREATE TABLE {$this->a} (
   id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  email varchar(190) DEFAULT NULL,
-  pass_hash varchar(255) DEFAULT NULL,
+  email varchar(190) NOT NULL,
+  pass_hash varchar(255) NOT NULL,
   player_id varchar(64) NOT NULL,
   save longtext,
   save_updated bigint(20) unsigned NOT NULL DEFAULT 0,
@@ -55,16 +53,6 @@ class BD_WP_Account_Store {
   PRIMARY KEY  (id),
   UNIQUE KEY player_id (player_id),
   UNIQUE KEY email (email)
-) $c;"
-		);
-		dbDelta(
-			"CREATE TABLE {$this->i} (
-  provider varchar(20) NOT NULL,
-  subject varchar(190) NOT NULL,
-  account_id bigint(20) unsigned NOT NULL,
-  created bigint(20) unsigned NOT NULL DEFAULT 0,
-  PRIMARY KEY  (provider,subject),
-  KEY account_id (account_id)
 ) $c;"
 		);
 		dbDelta(
@@ -77,6 +65,8 @@ class BD_WP_Account_Store {
   KEY account_id (account_id)
 ) $c;"
 		);
+		// Version 1 had a table for Google, Apple and Microsoft sign-ins, which are gone.
+		$this->db->query( "DROP TABLE IF EXISTS {$this->db->prefix}bd_identities" );
 	}
 
 	public function account( $id ) {
@@ -100,42 +90,11 @@ class BD_WP_Account_Store {
 
 	public function delete_account( $id ) {
 		$this->db->delete( $this->s, array( 'account_id' => $id ) );
-		$this->db->delete( $this->i, array( 'account_id' => $id ) );
 		$this->db->delete( $this->a, array( 'id' => $id ) );
 	}
 
 	public function count_accounts() {
 		return (int) $this->db->get_var( "SELECT COUNT(*) FROM {$this->a}" );
-	}
-
-	public function identity( $provider, $subject ) {
-		return $this->db->get_row( $this->db->prepare( "SELECT * FROM {$this->i} WHERE provider = %s AND subject = %s", $provider, $subject ), ARRAY_A );
-	}
-
-	public function identities( $account_id ) {
-		return (array) $this->db->get_results( $this->db->prepare( "SELECT * FROM {$this->i} WHERE account_id = %d", $account_id ), ARRAY_A );
-	}
-
-	public function add_identity( $provider, $subject, $account_id, $created ) {
-		return (bool) $this->db->insert(
-			$this->i,
-			array(
-				'provider'   => $provider,
-				'subject'    => $subject,
-				'account_id' => $account_id,
-				'created'    => $created,
-			)
-		);
-	}
-
-	public function delete_identity( $provider, $subject ) {
-		$this->db->delete(
-			$this->i,
-			array(
-				'provider' => $provider,
-				'subject'  => $subject,
-			)
-		);
 	}
 
 	public function add_session( $hash, $account_id, $created, $expires ) {
@@ -188,20 +147,7 @@ function bd_accounts_on() {
 	return '1' === (string) get_option( 'brighter_days_accounts', '0' );
 }
 
-function bd_id_list( $option ) {
-	return array_values( array_filter( array_map( 'trim', explode( ',', (string) get_option( $option, '' ) ) ) ) );
-}
-
-/** Client IDs per sign-in method. The first ID is the web one. */
-function bd_method_ids() {
-	return array(
-		'google'    => bd_id_list( 'brighter_days_google_ids' ),
-		'apple'     => bd_id_list( 'brighter_days_apple_ids' ),
-		'microsoft' => bd_id_list( 'brighter_days_microsoft_ids' ),
-	);
-}
-
-/** Short-lived hashed key, so no email, subject or IP is stored in the clear. */
+/** Short-lived hashed key, so no email or IP is stored in the clear. */
 function bd_limit_key( $bucket, $value ) {
 	return 'bd_rl_' . substr( hash_hmac( 'sha256', $bucket . '|' . strtolower( (string) $value ), wp_salt( 'nonce' ) ), 0, 32 );
 }
@@ -261,16 +207,10 @@ function bd_password_ok( $pass ) {
 }
 
 function bd_account_out( $acc ) {
-	$providers = array();
-	foreach ( bd_store()->identities( (int) $acc['id'] ) as $row ) {
-		$providers[] = $row['provider'];
-	}
 	return array(
-		'email'       => $acc['email'] ? (string) $acc['email'] : '',
-		'player'      => (string) $acc['player_id'],
-		'providers'   => array_values( array_unique( $providers ) ),
-		'hasPassword' => ! empty( $acc['pass_hash'] ),
-		'created'     => (int) $acc['created'],
+		'email'   => (string) $acc['email'],
+		'player'  => (string) $acc['player_id'],
+		'created' => (int) $acc['created'],
 	);
 }
 
@@ -321,42 +261,10 @@ function bd_auth( $p ) {
 	return $acc;
 }
 
-/** Stores a provider's email only if no other account already uses it. */
-function bd_maybe_take_email( $acc, $email ) {
-	if ( '' === $email || ! empty( $acc['email'] ) ) {
-		return;
-	}
-	$other = bd_store()->account_by( 'email', $email );
-	if ( ! $other ) {
-		bd_store()->update_account( (int) $acc['id'], array( 'email' => $email ) );
-	}
-}
-
-function bd_provider_label( $provider ) {
-	$all = bd_id_providers();
-	return isset( $all[ $provider ] ) ? $all[ $provider ]['label'] : 'that';
-}
-
 /* ---------- Handlers (take the request body as an array) ---------- */
 
 function bd_h_config( $p ) {
-	if ( ! bd_accounts_on() ) {
-		return array(
-			'enabled' => false,
-			'methods' => (object) array(),
-		);
-	}
-	$ids     = bd_method_ids();
-	$methods = array( 'password' => true );
-	foreach ( $ids as $k => $list ) {
-		if ( $list ) {
-			$methods[ $k ] = $list[0];
-		}
-	}
-	return array(
-		'enabled' => true,
-		'methods' => $methods,
-	);
+	return array( 'enabled' => bd_accounts_on() );
 }
 
 function bd_h_register( $p ) {
@@ -411,95 +319,12 @@ function bd_h_login( $p ) {
 		return bd_err( 'slow_down', 'Too many tries. Wait 15 minutes and try again.', 429 );
 	}
 	$acc = bd_store()->account_by( 'email', $email );
-	if ( ! $acc || empty( $acc['pass_hash'] ) || ! wp_check_password( $pass, $acc['pass_hash'] ) ) {
+	if ( ! $acc || ! wp_check_password( $pass, $acc['pass_hash'] ) ) {
 		bd_count( 'login', $email, BD_LOGIN_WINDOW );
 		return bd_err( 'login', 'That email and password don\'t match.', 401 );
 	}
 	bd_clear( 'login', $email );
 	return bd_signed_in( $acc, bd_new_session( (int) $acc['id'] ) );
-}
-
-function bd_h_provider( $p ) {
-	$provider = (string) ( $p['provider'] ?? '' );
-	$ids      = bd_method_ids();
-	if ( empty( $ids[ $provider ] ) ) {
-		return bd_err( 'method', 'That sign-in method isn\'t set up on this site.' );
-	}
-	$cred = (string) ( $p['credential'] ?? '' );
-	if ( '' === $cred || strlen( $cred ) > 8192 ) {
-		return bd_err( 'token', 'Sign-in didn\'t work. Try again.', 401 );
-	}
-	$peek   = bd_jwt_peek_sub( $cred );
-	$bucket = 'prov_' . $provider;
-	if ( '' !== $peek && bd_limited( $bucket, $peek, BD_LOGIN_TRIES ) ) {
-		return bd_err( 'slow_down', 'Too many tries. Wait 15 minutes and try again.', 429 );
-	}
-	$v = bd_verify_id_token( $provider, $cred, $ids[ $provider ] );
-	if ( is_wp_error( $v ) ) {
-		if ( '' !== $peek ) {
-			bd_count( $bucket, $peek, BD_LOGIN_WINDOW );
-		}
-		return $v;
-	}
-	bd_clear( $bucket, $peek );
-
-	$ident = bd_store()->identity( $provider, $v['sub'] );
-	$label = bd_provider_label( $provider );
-
-	// Signed in already: link this method to the current account.
-	if ( ! empty( $p['token'] ) ) {
-		$me = bd_auth( $p );
-		if ( is_wp_error( $me ) ) {
-			return $me;
-		}
-		if ( $ident && (int) $ident['account_id'] !== (int) $me['id'] ) {
-			return bd_err( 'linked_elsewhere', 'That ' . $label . ' account is already linked to a different player account.', 409 );
-		}
-		if ( ! $ident ) {
-			bd_store()->add_identity( $provider, $v['sub'], (int) $me['id'], time() );
-			bd_maybe_take_email( $me, $v['email'] );
-		}
-		return bd_signed_in( bd_store()->account( (int) $me['id'] ), $me['_token'] );
-	}
-
-	if ( $ident ) {
-		$acc = bd_store()->account( (int) $ident['account_id'] );
-		if ( $acc ) {
-			return bd_signed_in( $acc, bd_new_session( (int) $acc['id'] ) );
-		}
-		bd_store()->delete_identity( $provider, $v['sub'] ); // Left over from a removed account.
-	}
-
-	// First time with this method: a new account that owns this device's player.
-	$player = bd_clean_player( $p['player'] ?? '' );
-	if ( ! $player ) {
-		return bd_err( 'player', 'This device has no player ID yet. Reload the game and try again.' );
-	}
-	if ( bd_store()->account_by( 'player_id', $player ) ) {
-		return bd_err( 'player_taken', 'This player already belongs to an account. Sign in to that account instead.', 409 );
-	}
-	list( $ok, $save ) = bd_clean_save( $p['save'] ?? null );
-	if ( ! $ok ) {
-		return bd_err( 'save_size', 'Your save is too large to back up.', 413 );
-	}
-	$email = ( '' !== $v['email'] && ! bd_store()->account_by( 'email', $v['email'] ) ) ? $v['email'] : null;
-	$now   = time();
-	$id    = bd_store()->add_account(
-		array(
-			'email'        => $email,
-			'pass_hash'    => null,
-			'player_id'    => $player,
-			'save'         => $save,
-			'save_updated' => $save ? $now : 0,
-			'created'      => $now,
-			'last_login'   => $now,
-		)
-	);
-	if ( ! $id ) {
-		return bd_err( 'server', 'Couldn\'t create the account. Try again.', 500 );
-	}
-	bd_store()->add_identity( $provider, $v['sub'], $id, $now );
-	return bd_signed_in( bd_store()->account( $id ), bd_new_session( $id ) );
 }
 
 function bd_h_me( $p ) {
@@ -529,52 +354,24 @@ function bd_h_delete( $p ) {
 	return array( 'ok' => true );
 }
 
-function bd_h_unlink( $p ) {
-	$me = bd_auth( $p );
-	if ( is_wp_error( $me ) ) {
-		return $me;
-	}
-	$provider = (string) ( $p['provider'] ?? '' );
-	$all      = bd_store()->identities( (int) $me['id'] );
-	$mine     = array_filter(
-		$all,
-		function ( $r ) use ( $provider ) {
-			return $r['provider'] === $provider;
-		}
-	);
-	if ( ! $mine ) {
-		return bd_err( 'not_linked', 'That sign-in method isn\'t linked to your account.' );
-	}
-	if ( empty( $me['pass_hash'] ) && count( $all ) - count( $mine ) < 1 ) {
-		return bd_err( 'last_method', 'That\'s your only way to sign in. Set a password or link another method first.', 409 );
-	}
-	foreach ( $mine as $r ) {
-		bd_store()->delete_identity( $r['provider'], $r['subject'] );
-	}
-	return bd_signed_in( bd_store()->account( (int) $me['id'] ), $me['_token'] );
-}
-
-/** Sets or changes the password and/or email. */
+/** Changes the password and/or email. Needs the current password. */
 function bd_h_password( $p ) {
 	$me = bd_auth( $p );
 	if ( is_wp_error( $me ) ) {
 		return $me;
 	}
-	$has_pass = ! empty( $me['pass_hash'] );
 	$new      = (string) ( $p['password'] ?? '' );
 	$email    = array_key_exists( 'email', $p ) ? bd_clean_email( $p['email'] ) : null;
 	$limit_id = 'acct' . $me['id'];
 
-	if ( $has_pass ) {
-		if ( bd_limited( 'login', $limit_id, BD_LOGIN_TRIES ) ) {
-			return bd_err( 'slow_down', 'Too many tries. Wait 15 minutes and try again.', 429 );
-		}
-		if ( ! wp_check_password( (string) ( $p['current'] ?? '' ), $me['pass_hash'] ) ) {
-			bd_count( 'login', $limit_id, BD_LOGIN_WINDOW );
-			return bd_err( 'current', 'Your current password isn\'t right.', 401 );
-		}
-		bd_clear( 'login', $limit_id );
+	if ( bd_limited( 'login', $limit_id, BD_LOGIN_TRIES ) ) {
+		return bd_err( 'slow_down', 'Too many tries. Wait 15 minutes and try again.', 429 );
 	}
+	if ( ! wp_check_password( (string) ( $p['current'] ?? '' ), $me['pass_hash'] ) ) {
+		bd_count( 'login', $limit_id, BD_LOGIN_WINDOW );
+		return bd_err( 'current', 'Your current password isn\'t right.', 401 );
+	}
+	bd_clear( 'login', $limit_id );
 
 	$row = array();
 	if ( '' !== $new ) {
@@ -587,9 +384,6 @@ function bd_h_password( $p ) {
 		if ( '' === $email ) {
 			return bd_err( 'email', 'Enter a valid email address.' );
 		}
-		if ( ! $has_pass && ! isset( $row['pass_hash'] ) ) {
-			return bd_err( 'password', 'Choose a password to go with your email.' );
-		}
 		$other = bd_store()->account_by( 'email', $email );
 		if ( $other && (int) $other['id'] !== (int) $me['id'] ) {
 			return bd_err( 'email_taken', 'That email already has an account.', 409 );
@@ -599,11 +393,8 @@ function bd_h_password( $p ) {
 	if ( ! $row ) {
 		return bd_err( 'nothing', 'Nothing to change.' );
 	}
-	if ( isset( $row['pass_hash'] ) && empty( $row['email'] ) && empty( $me['email'] ) ) {
-		return bd_err( 'email', 'Add an email so you can sign in with your password.' );
-	}
 	bd_store()->update_account( (int) $me['id'], $row );
-	if ( isset( $row['pass_hash'] ) && $has_pass ) {
+	if ( isset( $row['pass_hash'] ) ) {
 		bd_store()->delete_sessions( (int) $me['id'], $me['_hash'] ); // Other devices sign in again.
 	}
 	return bd_signed_in( bd_store()->account( (int) $me['id'] ), $me['_token'] );
@@ -726,11 +517,9 @@ function bd_account_routes() {
 	return array(
 		'account/register'      => 'bd_h_register',
 		'account/login'         => 'bd_h_login',
-		'account/provider'      => 'bd_h_provider',
 		'account/me'            => 'bd_h_me',
 		'account/logout'        => 'bd_h_logout',
 		'account/delete'        => 'bd_h_delete',
-		'account/unlink'        => 'bd_h_unlink',
 		'account/password'      => 'bd_h_password',
 		'account/reset-request' => 'bd_h_reset_request',
 		'account/reset'         => 'bd_h_reset',
@@ -792,6 +581,9 @@ function bd_accounts_maybe_install() {
 	if ( BD_ACC_DB_VERSION !== get_option( 'brighter_days_accounts_db' ) ) {
 		bd_store()->install();
 		update_option( 'brighter_days_accounts_db', BD_ACC_DB_VERSION );
+		delete_option( 'brighter_days_google_ids' );
+		delete_option( 'brighter_days_apple_ids' );
+		delete_option( 'brighter_days_microsoft_ids' );
 	}
 }
 add_action( 'plugins_loaded', 'bd_accounts_maybe_install' );
@@ -817,7 +609,7 @@ function bd_accounts_privacy_text() {
 	}
 	wp_add_privacy_policy_content(
 		'Brighter Days',
-		'<p>Brighter Days can be played without an account. If you create one, we store: your email address (if you give one), a hashed password (if you set one), the IDs of any Google, Apple or Microsoft sign-in you link, your game save, and your shopkeeper name. Sign-in sessions are stored as one-way hashes. We do not store your IP address; rate limits use short-lived hashed keys. You can delete your account in the game (Menu, Account, Delete account), which removes the account, its sign-in methods, its sessions and the saved game from our server.</p>'
+		'<p>Brighter Days can be played without an account. If you create one, we store: your email address, a hashed password, your game save, and your shopkeeper name. Sign-in sessions are stored as one-way hashes. We do not store your IP address; rate limits use short-lived hashed keys. You can delete your account in the game (Menu, Account, Delete account), which removes the account, its sessions and the saved game from our server.</p>'
 	);
 }
 add_action( 'admin_init', 'bd_accounts_privacy_text' );

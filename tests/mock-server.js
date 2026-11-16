@@ -20,7 +20,7 @@ const SAVE_MAX = 300 * 1024;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.gif': 'image/gif', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json' };
 
 function createState() {
-  return { accounts: new Map(), nextId: 1, identities: new Map(), sessions: new Map(), resets: new Map(), tries: new Map(), lastCode: null };
+  return { accounts: new Map(), nextId: 1, sessions: new Map(), resets: new Map(), tries: new Map(), lastCode: null };
 }
 
 function err(code, message, status) { return { status: status || 400, body: { code: 'bd_' + code, message } }; }
@@ -36,8 +36,7 @@ const now = () => Math.floor(Date.now() / 1000);
 function api(st, config) {
   const byEmail = (e) => [...st.accounts.values()].find((a) => a.email === e) || null;
   const byPlayer = (p) => [...st.accounts.values()].find((a) => a.player_id === p) || null;
-  const idents = (id) => [...st.identities.entries()].filter(([, v]) => v.account_id === id).map(([k]) => ({ provider: k.split('|')[0], subject: k.slice(k.indexOf('|') + 1) }));
-  const out = (a) => ({ email: a.email || '', player: a.player_id, providers: [...new Set(idents(a.id).map((i) => i.provider))], hasPassword: !!a.pass_hash, created: a.created });
+  const out = (a) => ({ email: a.email, player: a.player_id, created: a.created });
   const signedIn = (a, token) => ok({ token, account: out(a), save: a.save ? JSON.parse(a.save) : null, saved: a.save_updated });
   const session = (id) => { const t = crypto.randomBytes(32).toString('hex'); st.sessions.set(sha(t), { account_id: id, expires: now() + 120 * 86400 }); st.accounts.get(id).last_login = now(); return t; };
   const auth = (p) => {
@@ -54,7 +53,7 @@ function api(st, config) {
   const add = (row) => { const id = st.nextId++; st.accounts.set(id, Object.assign({ id, created: now(), last_login: now(), save: null, save_updated: 0 }, row)); return st.accounts.get(id); };
 
   return {
-    config: () => ok(config.enabled ? { enabled: true, methods: Object.assign({ password: true }, config.methods || {}) } : { enabled: false, methods: {} }),
+    config: () => ok({ enabled: !!config.enabled }),
     'account/register': (p) => {
       const email = cleanEmail(p.email);
       if (!email) return err('email', 'Enter a valid email address.');
@@ -77,65 +76,31 @@ function api(st, config) {
       st.tries.delete('login|' + email);
       return signedIn(a, session(a.id));
     },
-    // Mock provider tokens look like "mock:<provider>:<subject>:<email>".
-    'account/provider': (p) => {
-      const m = /^mock:(google|apple|microsoft):([^:]{1,190}):(.*)$/.exec(String(p.credential || ''));
-      if (!config.methods || !config.methods[p.provider]) return err('method', "That sign-in method isn't set up on this site.");
-      if (!m || m[1] !== p.provider) return err('token', "Sign-in didn't work. Try again.", 401);
-      const key = m[1] + '|' + m[2], ident = st.identities.get(key), email = cleanEmail(m[3]);
-      if (p.token) {
-        const me = auth(p); if (me.e) return me.e;
-        if (ident && ident.account_id !== me.a.id) return err('linked_elsewhere', 'That account is already linked to a different player account.', 409);
-        if (!ident) { st.identities.set(key, { account_id: me.a.id }); if (email && !me.a.email && !byEmail(email)) me.a.email = email; }
-        return signedIn(me.a, me.t);
-      }
-      if (ident && st.accounts.get(ident.account_id)) { const a = st.accounts.get(ident.account_id); return signedIn(a, session(a.id)); }
-      const player = cleanPlayer(p.player);
-      if (!player) return err('player', 'This device has no player ID yet.');
-      if (byPlayer(player)) return err('player_taken', 'This player already belongs to an account. Sign in to that account instead.', 409);
-      const [good, save] = cleanSave(p.save);
-      if (!good) return err('save_size', 'Your save is too large to back up.', 413);
-      const a = add({ email: email && !byEmail(email) ? email : null, pass_hash: null, player_id: player, save, save_updated: save ? now() : 0 });
-      st.identities.set(key, { account_id: a.id });
-      return signedIn(a, session(a.id));
-    },
     'account/me': (p) => { const me = auth(p); return me.e || signedIn(me.a, me.t); },
     'account/logout': (p) => { const me = auth(p); if (!me.e) st.sessions.delete(me.h); return ok({ ok: true }); },
     'account/delete': (p) => {
       const me = auth(p); if (me.e) return me.e;
       if (p.confirm !== 'DELETE') return err('confirm', 'Type DELETE to confirm.');
       for (const [k, v] of st.sessions) if (v.account_id === me.a.id) st.sessions.delete(k);
-      for (const [k, v] of st.identities) if (v.account_id === me.a.id) st.identities.delete(k);
       st.accounts.delete(me.a.id);
       return ok({ ok: true });
     },
-    'account/unlink': (p) => {
-      const me = auth(p); if (me.e) return me.e;
-      const all = idents(me.a.id), mine = all.filter((i) => i.provider === p.provider);
-      if (!mine.length) return err('not_linked', "That sign-in method isn't linked to your account.");
-      if (!me.a.pass_hash && all.length - mine.length < 1) return err('last_method', "That's your only way to sign in. Set a password or link another method first.", 409);
-      mine.forEach((i) => st.identities.delete(i.provider + '|' + i.subject));
-      return signedIn(me.a, me.t);
-    },
     'account/password': (p) => {
       const me = auth(p); if (me.e) return me.e;
-      const has = !!me.a.pass_hash;
-      if (has && !checkPass(String(p.current || ''), me.a.pass_hash)) return err('current', "Your current password isn't right.", 401);
+      if (!checkPass(String(p.current || ''), me.a.pass_hash)) return err('current', "Your current password isn't right.", 401);
       const row = {};
       if (p.password) { if (!passOk(p.password)) return err('password', 'Use at least 8 characters for your password.'); row.pass_hash = hashPass(p.password); }
       if (p.email != null) {
         const e = cleanEmail(p.email);
-        if (e !== (me.a.email || '')) {
+        if (e !== me.a.email) {
           if (!e) return err('email', 'Enter a valid email address.');
-          if (!has && !row.pass_hash) return err('password', 'Choose a password to go with your email.');
           const o = byEmail(e); if (o && o.id !== me.a.id) return err('email_taken', 'That email already has an account.', 409);
           row.email = e;
         }
       }
       if (!Object.keys(row).length) return err('nothing', 'Nothing to change.');
-      if (row.pass_hash && !row.email && !me.a.email) return err('email', 'Add an email so you can sign in with your password.');
       Object.assign(me.a, row);
-      if (row.pass_hash && has) for (const [k, v] of st.sessions) if (v.account_id === me.a.id && k !== me.h) st.sessions.delete(k);
+      if (row.pass_hash) for (const [k, v] of st.sessions) if (v.account_id === me.a.id && k !== me.h) st.sessions.delete(k);
       return signedIn(me.a, me.t);
     },
     'account/reset-request': (p) => {
@@ -175,7 +140,7 @@ function api(st, config) {
 }
 
 function start(opts) {
-  opts = Object.assign({ port: 8790, enabled: true, methods: {}, log: false }, opts || {});
+  opts = Object.assign({ port: 8790, enabled: true, log: false }, opts || {});
   const st = createState();
   const routes = api(st, opts);
   const server = http.createServer((req, res) => {
