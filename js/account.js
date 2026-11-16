@@ -133,6 +133,12 @@
       return j;
     });
   }
+  /* ---------- The Exchange ---------- */
+  function boardList() { return call('/board', null, 'GET').then(function (j) { return Array.isArray(j.rows) ? j.rows : []; }); }
+  /** Lists or updates this player's shop. Needs a signed-in account. */
+  function boardPost(entry) { return authed('/board/post', { entry: entry }); }
+  function boardDelist() { return authed('/board/delist'); }
+
   var cfg = null;
   function siteConfig() {
     if (!cfg) {
@@ -208,6 +214,7 @@
     playerId: playerId, setPlayerId: setPlayerId, newPlayerId: newPlayerId,
     register: register, login: login, me: me, logout: logout, setPassword: setPassword, requestReset: requestReset, reset: reset,
     deleteAccount: deleteAccount, upload: upload, siteConfig: siteConfig,
+    boardList: boardList, boardPost: boardPost, boardDelist: boardDelist,
     mergeSaves: mergeSaves, adopt: adopt, detach: detach
   };
 });

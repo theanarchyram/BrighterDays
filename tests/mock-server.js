@@ -20,7 +20,7 @@ const SAVE_MAX = 300 * 1024;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.gif': 'image/gif', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json' };
 
 function createState() {
-  return { accounts: new Map(), nextId: 1, sessions: new Map(), resets: new Map(), tries: new Map(), lastCode: null };
+  return { accounts: new Map(), nextId: 1, sessions: new Map(), resets: new Map(), tries: new Map(), board: new Map(), lastCode: null };
 }
 
 function err(code, message, status) { return { status: status || 400, body: { code: 'bd_' + code, message } }; }
@@ -32,6 +32,7 @@ const cleanEmail = (e) => { e = String(e || '').trim().toLowerCase(); return e.l
 const cleanPlayer = (p) => (/^[A-Za-z0-9_-]{8,64}$/.test(String(p || '')) ? String(p) : '');
 const passOk = (p) => typeof p === 'string' && p.length >= 8 && p.length <= 200;
 const now = () => Math.floor(Date.now() / 1000);
+const boardId = (pid) => crypto.createHmac('sha256', 'mock-salt').update(pid).digest('hex').slice(0, 16);
 
 function api(st, config) {
   const byEmail = (e) => [...st.accounts.values()].find((a) => a.email === e) || null;
@@ -54,6 +55,20 @@ function api(st, config) {
 
   return {
     config: () => ok({ enabled: !!config.enabled }),
+    board: () => ok({ rows: [...st.board.entries()].map(([pid, r]) => Object.assign({}, r.data, { id: boardId(pid), updatedAt: r.updated })).sort((a, b) => b.worth - a.worth).slice(0, 300) }),
+    'board/post': (p) => {
+      const me = auth(p); if (me.e) return me.e;
+      const e = p.entry;
+      if (!e || typeof e !== 'object') return err('entry', "That listing isn't valid.");
+      const name = String(e.name || '').trim().replace(/\s+/g, ' ');
+      if (name.length < 2 || name.length > 16 || !/^[A-Za-z0-9 _'.-]+$/.test(name)) return err('name', 'Choose a shopkeeper name of 2 to 16 letters.');
+      const n = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)));
+      const B = 1e12;
+      const data = { name, ticker: String(e.ticker || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5), worth: n(e.worth, -B, B), prev: n(e.prev, -B, B), purse: n(e.purse, -B, B), day: n(e.day, 1, 1e6), level: n(e.level, 1, 1e4), rep: n(e.rep, 0, 100), trades: n(e.trades, 0, B), thieves: n(e.thieves, 0, B), crooks: n(e.crooks, 0, B), best: n(e.best, -B, B), tro: n(e.tro, 0, 999), guild: !!e.guild };
+      st.board.set(me.a.player_id, { data, updated: now() });
+      return ok({ ok: true, id: boardId(me.a.player_id) });
+    },
+    'board/delist': (p) => { const me = auth(p); if (me.e) return me.e; st.board.delete(me.a.player_id); return ok({ ok: true }); },
     'account/register': (p) => {
       const email = cleanEmail(p.email);
       if (!email) return err('email', 'Enter a valid email address.');
@@ -82,6 +97,7 @@ function api(st, config) {
       const me = auth(p); if (me.e) return me.e;
       if (p.confirm !== 'DELETE') return err('confirm', 'Type DELETE to confirm.');
       for (const [k, v] of st.sessions) if (v.account_id === me.a.id) st.sessions.delete(k);
+      st.board.delete(me.a.player_id);
       st.accounts.delete(me.a.id);
       return ok({ ok: true });
     },
@@ -151,13 +167,14 @@ function start(opts) {
       const h = m && routes[m[1]];
       const send = (r) => { res.writeHead(r.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(r.body)); };
       if (!h) return send(err('no_route', 'No route was found.', 404));
-      if ((m[1] === 'config') !== (req.method === 'GET')) return send(err('method', 'Wrong method.', 405));
+      const isGet = m[1] === 'config' || m[1] === 'board';
+      if (isGet !== (req.method === 'GET')) return send(err('method', 'Wrong method.', 405));
       let raw = '';
       req.on('data', (c) => { raw += c; if (raw.length > 2e6) req.destroy(); });
       req.on('end', () => {
         let body = {};
         try { body = raw ? JSON.parse(raw) : {}; } catch (e) { body = {}; }
-        if (m[1] !== 'config' && !opts.enabled) return send(err('off', 'Accounts are switched off on this site.', 403));
+        if (!isGet && !opts.enabled) return send(err('off', 'Accounts are switched off on this site.', 403));
         send(h(body || {}));
       });
       return;

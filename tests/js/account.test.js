@@ -198,10 +198,43 @@ test('changing email and password needs the current password', async () => {
   assert.ok((await A.login('moved@example.com', 'secondpass1')).token);
 });
 
-test('delete needs DELETE and removes the account', async () => {
+test('Exchange: guests can read, only signed-in players can list', async () => {
+  await assert.rejects(A.boardPost({ name: 'Ghost', worth: 1 }), { code: 'signed_out' });
+  await A.register('shop1@example.com', 'longenough', 'p_boardplay01', null);
+  const r = await A.boardPost({ name: 'Tess', ticker: 'tess', worth: 900, prev: 800, day: 4, rep: 250, tro: 3 });
+  assert.match(r.id, /^[0-9a-f]{16}$/);
+  await assert.rejects(A.boardPost({ name: 'x', worth: 1 }), { code: 'name' });
+  mem.clear();
+  await A.register('shop2@example.com', 'longenough', 'p_boardplay02', null);
+  await A.boardPost({ name: 'Bram', worth: 1500 });
+  await A.boardPost({ name: 'Bram', worth: 1600 });
+  mem.clear();
+  const rows = await A.boardList();
+  const tess = rows.find((x) => x.name === 'Tess');
+  assert.deepEqual(rows.map((x) => x.name).slice(0, 2), ['Bram', 'Tess'], 'richest first, one row per player');
+  assert.equal(rows.filter((x) => x.name === 'Bram').length, 1);
+  assert.equal(tess.ticker, 'TESS');
+  assert.equal(tess.rep, 100, 'values are clamped');
+  assert.equal(tess.id, r.id);
+  assert.ok(!JSON.stringify(rows).includes('p_boardplay'), 'player IDs are never shown');
+});
+
+test('delete needs DELETE and removes the account and its listing', async () => {
   await A.register('gone@example.com', 'deleteme1', 'p_goneplayer01', null);
+  await A.boardPost({ name: 'Goner', worth: 5 });
+  assert.ok((await A.boardList()).some((x) => x.name === 'Goner'));
   await assert.rejects(A.deleteAccount('delete'), { code: 'confirm' });
   await A.deleteAccount('DELETE');
   assert.equal(A.loadSession(), null);
   await assert.rejects(A.login('gone@example.com', 'deleteme1'), { code: 'login' });
+  assert.ok(!(await A.boardList()).some((x) => x.name === 'Goner'));
+});
+
+test('delisting removes only your own shop', async () => {
+  await A.register('delist@example.com', 'longenough', 'p_delistplay1', null);
+  await A.boardPost({ name: 'Leaver', worth: 7 });
+  await A.boardDelist();
+  const rows = await A.boardList();
+  assert.ok(!rows.some((x) => x.name === 'Leaver'));
+  assert.ok(rows.some((x) => x.name === 'Bram'));
 });

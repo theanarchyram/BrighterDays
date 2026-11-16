@@ -188,6 +188,14 @@ textarea.field{min-height:110px;resize:vertical}
  .grow{font-size:22px}.grow small{font-size:18px}.row img{width:36px;height:36px}
  .slot img{width:60px;height:60px}.slot .lab{font-size:18px}
 }
+/* computer browsers: use the whole window instead of a centred column */
+@media (min-width:1100px) and (min-height:600px) and (orientation:landscape) and (hover:hover) and (pointer:fine){
+ #app{max-width:none}
+ #v-shop.active{grid-template-columns:minmax(0,1.55fr) minmax(380px,1fr);padding:16px 28px;gap:12px 28px}
+ #v-shop .frame{height:min(max(calc(100vh - 470px),56vh),calc((100vw - 120px)*.6*.7));height:min(max(calc(100dvh - 470px),56dvh),calc((100vw - 120px)*.6*.7))}
+ #v-stock.active,#v-work.active,#v-town.active,#v-ledger.active,#v-exchange.active{padding:18px 28px}
+ .grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+}
 .yard{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
 .pile{aspect-ratio:1;background:#6b5a46;border:3px solid var(--shadow);box-shadow:inset 0 -4px 0 rgba(0,0,0,.3),0 3px 0 var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px;font:inherit;font-size:14px;color:var(--parch);cursor:pointer;line-height:1.1;text-align:center}
 .pile img{width:62%;height:auto}
@@ -362,6 +370,10 @@ button.fspine:hover,button.fspine:focus-visible{transform:translateY(-6px);outli
 .fspine.lean{transform:rotate(-10deg);transform-origin:bottom left;margin-left:3px}
 .fscandle{display:block;position:relative;width:7px;height:20px;margin-left:auto;background:linear-gradient(90deg,#fff4dc,#c9b48c);border-radius:1px 1px 0 0}
 .fscandle::before{content:"";position:absolute;left:1px;top:-8px;width:5px;height:8px;border-radius:50% 50% 40% 40%;background:radial-gradient(ellipse at 50% 70%,#fff3c0,#ff9a3a 60%,transparent 70%);box-shadow:0 0 10px 4px rgba(255,170,80,.35);animation:flick 1.3s infinite steps(2)}
+.floor{position:relative}.fshelf{position:relative}
+.shopcat{position:absolute;left:0;bottom:2px;width:48px;height:33px;z-index:4;pointer-events:none;image-rendering:pixelated;background-size:96px 33px;background-repeat:no-repeat;filter:drop-shadow(0 2px 0 rgba(0,0,0,.45))}
+.shopcat.left{transform:scaleX(-1)}
+.shopsword{position:absolute;left:-20px;bottom:0;width:21px;height:69px;z-index:3;pointer-events:none;image-rendering:pixelated;transform:rotate(9deg);transform-origin:bottom center;filter:drop-shadow(2px 2px 0 rgba(0,0,0,.5))}
 .fsbase{height:14px;margin:0 -6px;background:linear-gradient(180deg,#5a3418,#3a200e);border-top:2px solid #1a0c04;box-shadow:inset 0 3px 4px rgba(0,0,0,.45)}
 [data-era="3"] .fshelf{border-color:#8a8f99;background:linear-gradient(180deg,#2a2e36,#181a20)}[data-era="3"] .fsrow::after{background:linear-gradient(180deg,#c8ccd4,#8a8f99)}[data-era="3"] .fsbase{background:linear-gradient(180deg,#6a6f79,#4a4f58)}
 [data-era="4"] .fshelf{border-color:#2a2a3e;box-shadow:inset 0 0 0 1px #05d9e8,0 0 14px rgba(5,217,232,.3)}[data-era="4"] .fsrow::after{background:#22223a;box-shadow:0 0 6px #ff2a6d}[data-era="4"] .fsbase{background:#0a0a16;border-top-color:#05d9e8}
@@ -513,7 +525,8 @@ button.fspine:hover,button.fspine:focus-visible{transform:translateY(-6px);outli
       </div>
       <div class="floor"><div class="wall" id="wall" aria-label="Wanted posters"></div>
       <button class="dtable" id="dtable" aria-label="Display table. Tap to change what is on it"></button>
-      <div class="fshelf" id="fshelf" role="group" aria-label="Bookshelf"></div></div>
+      <div class="fshelf" id="fshelf" role="group" aria-label="Bookshelf"></div>
+      <img class="shopsword" id="shopSword" alt="" hidden><div class="shopcat" id="shopCat" aria-hidden="true" hidden></div></div>
       <div id="trade" style="display:flex;flex-direction:column;gap:10px">
         <div class="parch itemcard">
           <img id="itemIcon" alt="">
@@ -689,7 +702,7 @@ const RECIPES=[
  {id:'bars',def:'bars',inp:{ingot:3,scrap:2},fuel:5,name:'Iron window bars',desc:'Thieves visit a third less often.'},
  {id:'trap',def:'trap',inp:{gear:3,bronze:1,ingot:1},fuel:4,name:'Gear trap',desc:'Half the thieves who escape get caught by it.'}
 ];
-const DEFS={crossbow:{name:'Crossbow behind the counter',desc:'Some thieves take one look at it and run.',k:'crossbow'},sword:{name:'Sword over the counter',desc:'You only need 2 grabs to stop a thief.',k:'sword'},shield:{name:'Shield by the window',desc:'More time to grab a thief.',k:'shield'}};
+const DEFS={crossbow:{name:'Crossbow behind the counter',desc:'Some thieves take one look at it and run.',k:'crossbow'},sword:{name:'Sword by the bookshelf',desc:'You only need 2 grabs to stop a thief.',k:'sword'},shield:{name:'Shield by the window',desc:'More time to grab a thief.',k:'shield'}};
 const ERA_PAL=[null,null,{G:'#e0c080',g:'#a88048',d:'#5a4020'},{G:'#eef1f5',g:'#a0a8b4',d:'#4a5260',y:'#ffd23a',l:'#c08850'},{k:'#0a0418',G:'#9ff8ff',g:'#00b8d4',d:'#103a50',y:'#ff3df2',Y:'#a0007a',r:'#ff2a6d',R:'#8a0030',o:'#00f0ff',b:'#3a1a5a',B:'#1a0a2a',l:'#7a4ab0',n:'#39ff6a',N:'#0a8a3a',u:'#a040ff',U:'#5010a0',c:'#c8d0ff',w:'#e8f8ff',e:'#00a0ff',E:'#80e0ff',p:'#ff80c0'}];
 const PALC=ERA_PAL.map(x=>x?Object.assign({},PAL,x):PAL);const palFor=e=>PALC[e]||PAL;
 const ERA_NAMES={herb:['Healing Herb','Healing Herb','Herbal Tonic','Vitamins','Bio-Herb'],sword:['Iron Sword','Rapier','Sabre','Combat Knife','Mono-Blade'],bread:['Bread','Bread','Bread Loaf','Sandwich','Ration Bar'],torch:['Torch','Candle Lantern','Gas Lamp','Flashlight','Glowstick'],ale:['Ale','Wine','Stout','Soda','Synth Ale'],silk:['Silk','Velvet','Fine Cloth','Designer Jacket','Smart Fabric'],potion:['Health Potion','Elixir','Patent Medicine','First Aid Kit','Stim Pack'],leather:['Leather','Leather','Leather','Leather Jacket','Synth Leather'],ingot:['Iron Ingot','Iron Ingot','Steel Ingot','Steel Bar','Alloy Ingot'],cheese:['Cheese','Cheese','Cheese','Pizza','Vat Cheese'],wool:['Wool','Wool','Cotton','Hoodie','Nanofiber'],shield:['Shield','Buckler','Iron Plate','Riot Shield','Kinetic Shield'],spices:['Spices','Spices','Tea','Coffee','Flavor Chips'],ruby:['Ruby','Ruby','Diamond','Smartphone','Data Shard'],lute:['Lute','Violin','Gramophone','Electric Guitar','Synth Guitar'],scrap:['Scrap Iron','Scrap Iron','Scrap Metal','Scrap Metal','E-Waste'],gear:['Old Gears','Clock Gears','Cogs','Circuit Board','Servo Motor'],bronze:['Bronze Bits','Brass Bits','Copper Pipe','Copper Wire','Fiber Optics'],blade:['Broken Blade','Broken Blade','Broken Sabre','Broken Knife','Cracked Mono-Blade'],horseshoe:['Horseshoe','Horseshoe','Rail Spike','Car Part','Hover Coil'],relic:['Ancient Relic','Ancient Relic','Antique','Vintage Collectible','Pre-Net Relic'],toy:['Clockwork Toy','Clockwork Toy','Wind-up Robot','RC Car','Robo Pet']};
@@ -1101,7 +1114,7 @@ let thiefTimer=null,grabs=0,tStart=0,tDur=2600,tNeed=3;
 function startThief(){
  if(!cust||cust.kind!=='thief')return;
  if(S.def.crossbow&&Math.random()<.3){say('He spots the '+ITEMS.crossbow.name.toLowerCase()+' behind your counter and bolts!');logLine('A thief fled at the sight of your '+ITEMS.crossbow.name.toLowerCase());cust.mood='angry';leave();return;}
- sfx('alarm');grabs=0;tNeed=S.def.sword?2:3;tDur=Math.max(1700,2700-S.day*40)+(S.def.shield?700:0)+(S.perks.quick?800:0);$('thiefTip').textContent=S.def.sword?'Your mounted sword makes him flinch. Grab fast!':'He\u2019s grabbing your coin purse!';tStart=performance.now();
+ sfx('alarm');grabs=0;tNeed=S.def.sword?2:3;tDur=Math.max(1700,2700-S.day*40)+(S.def.shield?700:0)+(S.perks.quick?800:0);$('thiefTip').textContent=S.def.sword?'He eyes the sword by your bookshelf and flinches. Grab fast!':'He\u2019s grabbing your coin purse!';tStart=performance.now();
  $('thief').classList.add('on');moveGrab();
  thiefTimer=setInterval(()=>{if(document.hidden)return;const e=performance.now()-tStart;$('tfill').style.width=Math.max(0,100-e/tDur*100)+'%';if(e>=tDur)endThief(false);},30);
 }
@@ -1109,9 +1122,9 @@ function moveGrab(){const g=$('grab');g.style.left=rand(28,72)+'%';g.style.top=r
 function endThief(win){
  clearInterval(thiefTimer);thiefTimer=null;$('thief').classList.remove('on');
  const c=cust;if(!c)return;
- if(win){const b=ri(10,25);S.purse+=b;S.today.income+=b;logLine('Caught a thief! The watch paid a '+b+'g bounty');repAdj(2);gainXP(5);track('thief',{});S.stats.thieves++;c.mood='angry';say('Argh! Unhand me!');floatText('Caught! +'+b+'g','#f2c14e');sfx('deal');if(c.wantedId){const P=S.posters.find(p=>p.id===c.wantedId);if(P){S.posters=S.posters.filter(p=>p!==P);S.purse+=P.reward;S.today.income+=P.reward;repAdj(2);gainXP(8);logLine('The thief was '+P.name+'! Wanted reward: '+P.reward+'g');setTimeout(()=>floatText('It was '+P.name+'! +'+P.reward+'g','#f2c14e'),900);}}}
+ if(win){const b=ri(10,25);S.purse+=b;S.today.income+=b;logLine('Caught a thief! The watch paid a '+b+'g bounty');repAdj(2);gainXP(5);track('thief',{});S.stats.thieves++;c.mood='angry';say('Argh! Unhand me!');floatText('Caught! +'+b+'g','#f2c14e');sfx('deal');if(S.guard)c.escort={x:-110,ready:false};if(c.wantedId){const P=S.posters.find(p=>p.id===c.wantedId);if(P){S.posters=S.posters.filter(p=>p!==P);S.purse+=P.reward;S.today.income+=P.reward;repAdj(2);gainXP(8);logLine('The thief was '+P.name+'! Wanted reward: '+P.reward+'g');setTimeout(()=>floatText('It was '+P.name+'! +'+P.reward+'g','#f2c14e'),900);}}}
  else if(S.def.trap&&Math.random()<.5){c.mood='angry';say('SNAP! Your gear trap clamps his ankle!');logLine('Your gear trap caught a thief');repAdj(1);sfx('anvil');}
- else if(S.guard&&Math.random()<.5){c.mood='angry';say('Your guard tackles him to the cobbles!');logLine('Your guard stopped a thief');sfx('deal');}
+ else if(S.guard&&Math.random()<.5){c.mood='angry';say('Your guard tackles him to the cobbles!');logLine('Your guard stopped a thief');sfx('deal');c.escort={x:-110,ready:false};}
  else{
   const owned=ITEM_KEYS.filter(k=>S.stock[k]>0&&ITEMS[k].base<2000&&!ITEMS[k].junk);
   if(S.purse>20&&(Math.random()<.5||!owned.length)){const a=Math.round(S.purse*rand(.08,.18));S.purse-=a;logLine('A thief snatched '+a+'g from your purse');floatText('-'+a+'g','#f0a090');}
@@ -1455,12 +1468,42 @@ function forge(id){
 }
 function renderDTable(){const el=$('dtable');if(!el)return;const dp=(S.display||[null,null,null]);el.innerHTML='<span class="dtitems">'+dp.map(k=>k&&S.stock[k]>0?'<span class="dtitem" title="'+ITEMS[k].name+'"><img src="'+iconURL(k)+'" alt="'+ITEMS[k].name+'"></span>':'<span class="dtitem empty" title="'+(k?'Sold out':'Empty')+'"><i></i></span>').join('')+'</span><span class="dtslab"></span><span class="dtapron"><span class="dtrun"></span></span><span class="dtlegs"><i></i><i></i></span>';}
 $('dtable').addEventListener('click',()=>{showView('stock');setTimeout(()=>{const d=$('v-stock').querySelector('.disp');if(d)d.scrollIntoView({behavior:'smooth',block:'center'});},60);});
+/* Shop cat walking the floor, and the sword leaning on the bookshelf */
+const CAT_A=["............k..k",".k.........kookk","ko.........ooooo","ko.........okoko",".okkkkkkkkkowwwo",".koYooYooYooww..",".koYooYooYoowk..",".koooooooooook..","..kkkkkkkkkkkk..","..ko.ko...ko.ko.","..kk.kk...kk.kk."];
+const CAT_B=CAT_A.slice(0,9).concat(["...ko.ko.ko.ko..","...kk.kk.kk.kk.."]);
+const CAT_PAL=Object.assign({},PAL,{o:'#e08a3a',Y:'#a85a1e',w:'#f4ecdc'});
+const SWORD_SPR=["...k...","..kGk..","..kGk..","..kGk..","..kGk..","..kGk..","..kGk..","..kGk..","..kGk..","..kGk..","..kGk..","..kGk..","..kGk..","..kGk..","..kGk..","kyyyyyk",".kYYYk.","..kbk..","..kbk..","..kbk..","..kbk..","..kyk..","...k..."];
+const CAT_STILL=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let catX=30,catDir=1,catRest=0,catStep=0,catFrame=0;
+function catSheet(){if(!urlCache.catSheet){const c=document.createElement('canvas');c.width=96;c.height=33;const x=c.getContext('2d');drawRows(x,CAT_A,0,0,3,CAT_PAL);drawRows(x,CAT_B,48,0,3,CAT_PAL);urlCache.catSheet=c.toDataURL();}return urlCache.catSheet;}
+function swordURL(){if(!urlCache.shopSword)urlCache.shopSword=sprCanvas(SWORD_SPR,3).toDataURL();return urlCache.shopSword;}
+function renderShopExtras(){
+ const cat=$('shopCat'),sw=$('shopSword'),shelf=$('fshelf');if(!cat||!sw||!shelf||!S)return;
+ cat.hidden=!S.cat;if(S.cat&&!cat.style.backgroundImage)cat.style.backgroundImage='url('+catSheet()+')';
+ if(sw.parentNode!==shelf)shelf.appendChild(sw);
+ sw.hidden=!(S.def&&S.def.sword);if(!sw.hidden&&!sw.getAttribute('src'))sw.src=swordURL();
+}
+function catTick(dt){
+ const el=$('shopCat');if(!el||el.hidden||view!=='shop')return;
+ const W=el.parentNode.clientWidth-48;if(W<=0)return;
+ if(CAT_STILL){catX=Math.min(catX,W);el.style.left=Math.round(catX)+'px';return;}
+ if(catRest>0){catRest-=dt;el.style.backgroundPosition='0 0';}
+ else{
+  catX+=catDir*dt*.03;
+  if(catX>=W){catX=W;catDir=-1;catRest=rand(800,2500);}
+  else if(catX<=0){catX=0;catDir=1;catRest=rand(800,2500);}
+  else if(Math.random()<dt/7000){catRest=rand(1200,3500);if(Math.random()<.4)catDir=-catDir;}
+  catStep+=dt;if(catStep>160){catStep=0;catFrame^=1;}
+  el.style.backgroundPosition=(catFrame?'-48px':'0')+' 0';
+ }
+ el.style.left=Math.round(catX)+'px';el.classList.toggle('left',catDir<0);
+}
 function renderFShelf(){const el=$('fshelf');if(!el||el.dataset.done)return;el.dataset.done=1;
  const sp=(id,label,h,w)=>{const b=BOOKS[id];return '<button class="fspine" data-book="'+id+'" style="--bc:'+b.color+';--h:'+h+'%;--w:'+w+'px" title="'+b.title+'" aria-label="Read '+b.title+'"><span>'+label+'</span></button>';};
  const fl=(c,h,w,cls)=>'<i class="fspine filler'+(cls?' '+cls:'')+'" aria-hidden="true" style="--bc:'+c+';--h:'+h+'%;--w:'+w+'px"></i>';
  el.innerHTML='<div class="fsrow">'+fl('#2a3a2a',78,9)+sp('medical','Medical',96,24)+sp('mechanics','Car Care',92,24)+fl('#4a2424',70,8,'lean')+'</div><div class="fsrow">'+sp('survival','Survival',94,24)+fl('#262a3a',82,9)+sp('dict','Dictionary',100,26)+'<i class="fscandle" aria-hidden="true"></i></div><div class="fsbase"></div>';}
 $('fshelf').addEventListener('click',e=>{const b=e.target.closest('[data-book]');if(b)openBook(b.dataset.book);});
-function renderAll(){if(S){checkAch();document.documentElement.dataset.era=era();}renderHUD();renderTrade();renderWall();renderDTable();renderFShelf();if(view==='stock')renderStock();else if(view==='work')renderWork();else if(view==='town')renderTown();else if(view==='ledger')renderLedger();else if(view==='exchange')renderExchange();}
+function renderAll(){if(S){checkAch();document.documentElement.dataset.era=era();}renderHUD();renderTrade();renderWall();renderDTable();renderFShelf();renderShopExtras();if(view==='stock')renderStock();else if(view==='work')renderWork();else if(view==='town')renderTown();else if(view==='ledger')renderLedger();else if(view==='exchange')renderExchange();}
 
 $('main').addEventListener('click',e=>{
  const b=e.target.closest('[data-act]');if(!b||b.disabled)return;const a=b.dataset.act;
@@ -1484,6 +1527,9 @@ $('main').addEventListener('click',e=>{
  else if(a==='bug'){openBug();return;}
  else if(a==='signin'){signIn(false);return;}
  else if(a==='refreshboard'){postBoard(true);toast('Quote sent to the Exchange.');return;}
+ else if(a==='acctin'){accArgs=null;openAccount('in');return;}
+ else if(a==='delist'){ACC.boardDelist().then(()=>{S.unlisted=true;save();EX_ME='';toast('Your shop was taken off the Exchange.');loadBoard(true);renderAll();},()=>toast('Couldn’t reach the Exchange.'));return;}
+ else if(a==='relist'){S.unlisted=false;save();postBoard(true);toast('Your shop is listed as '+S.ticker+'.');renderAll();return;}
  else if(a==='reports'){showReports();return;}
  else if(a==='snd'){muted=!muted;S.muted=muted;}
  else if(a==='music'){S.music=!S.music;if(S.music)tone(1,.01,'sine',.0001);}
@@ -1503,24 +1549,29 @@ let DB=null,USER=null,canSee=false,USERID=null,capsDone=false;
 function whenCaps(cb){const t0=Date.now();(function w(){if(capsDone||Date.now()-t0>3500)cb();else setTimeout(w,120);})();}
 function netWorth(){return S.purse+ITEM_KEYS.reduce((a,k)=>a+S.stock[k]*mp(k),0);}
 function makeTicker(n){const t=n.toUpperCase().replace(/[^A-Z0-9]/g,'');return(t.slice(0,4)||'SHOP').padEnd(3,'X');}
-let lastPost=0;
+/* The Exchange runs on the WordPress plugin. Signed-in players are listed; everyone can watch. */
+let lastPost=0,EX_ME='';
+function exOn(){return typeof accReady==='function'&&accReady();}
+function exListed(){return !!(exOn()&&ASESS&&S&&S.username&&!S.unlisted);}
 function postBoard(force){
- if(!DB||!USERID||!S.username)return;const now=Date.now();if(!force&&now-lastPost<25000)return;lastPost=now;
+ if(!exListed())return;const now=Date.now();if(!force&&now-lastPost<25000)return;lastPost=now;
  const w=netWorth();
- DB.collection('board').doc(USERID).set({name:S.username.slice(0,16),ticker:S.ticker,worth:w,prev:S.lastClose==null?w:S.lastClose,purse:S.purse,day:S.day,level:S.level,rep:S.rep,trades:S.stats.trades,thieves:S.stats.thieves,crooks:S.stats.crooks,best:S.stats.best,tro:Object.keys(S.ach).length,guild:!!S.charter,updatedAt:now}).catch(e=>noteErr('board: '+(e&&e.code||e)));
+ ACC.boardPost({name:S.username.slice(0,16),ticker:S.ticker,worth:w,prev:S.lastClose==null?w:S.lastClose,purse:S.purse,day:S.day,level:S.level,rep:S.rep,trades:S.stats.trades,thieves:S.stats.thieves,crooks:S.stats.crooks,best:S.stats.best,tro:Object.keys(S.ach).length,guild:!!S.charter})
+  .then(j=>{if(j&&j.id)EX_ME=j.id;if(view==='exchange')loadBoard(true);},e=>{noteErr('board: '+(e&&e.code||e));if(e&&e.code==='signed_out'){ASESS=null;renderAll();}});
 }
 setInterval(()=>{if(S&&S.phase!=='over')postBoard(false);},30000);
-let BOARD=[],boardUnsub=null,boardLoaded=false,boardErr='',lbSort={k:'worth',d:-1};
-function listenBoard(){
- if(!DB||boardUnsub)return;
- setTimeout(()=>{if(!boardLoaded&&!boardErr){boardErr='The trading floor is slow to open. Try again in a moment.';if(view==='exchange')renderExchange();}},10000);
- try{boardUnsub=DB.collection('board').limit(300).onSnapshot(snap=>{BOARD=snap.docs.map(d=>Object.assign({id:d.id},d.data()||{}));boardLoaded=true;boardErr='';if(view==='exchange')renderExchange();},()=>{boardErr='The trading floor is closed right now.';boardUnsub=null;if(view==='exchange')renderExchange();});}
- catch(e){boardErr='The trading floor is closed right now.';}
+let BOARD=[],boardLoaded=false,boardErr='',boardBusy=false,boardTry=0,lbSort={k:'worth',d:-1};
+function loadBoard(now){
+ if(!exOn()||boardBusy)return;if(!now&&Date.now()-boardTry<30000)return;
+ boardBusy=true;boardTry=Date.now();
+ ACC.boardList().then(rows=>{BOARD=rows;boardLoaded=true;boardErr='';},()=>{boardErr='The trading floor is closed right now. Try again in a moment.';}).then(()=>{boardBusy=false;if(view==='exchange')renderExchange();});
 }
+function listenBoard(){loadBoard(true);}
+setInterval(()=>{if(view==='exchange'&&!document.hidden)loadBoard(false);},30000);
 const fmtN=n=>Math.round(n).toLocaleString('en-US');
 const COLS=[['rank','#'],['tk','Symbol',1],['name','Merchant',1],['worth','Net Worth'],['chg','Chg'],['pct','% Chg'],['purse','Purse'],['day','Day'],['level','Lv'],['rep','Rep'],['trades','Trades'],['thieves','Thieves'],['crooks','Crooks'],['best','Best Day'],['tro','Trophies']];
 function renderExchange(){
- const v=$('v-exchange');
+ const v=$('v-exchange');loadBoard(false);
  const rows=BOARD.map(r=>{const worth=+r.worth||0,prev=+r.prev||0,chg=prev?worth-prev:0;return{id:r.id,name:String(r.name||'?').slice(0,16),tk:String(r.ticker||'????').slice(0,5),worth,chg,pct:prev?chg/prev*100:0,purse:+r.purse||0,day:+r.day||0,level:+r.level||1,rep:+r.rep||0,trades:+r.trades||0,thieves:+r.thieves||0,crooks:+r.crooks||0,best:+r.best||0,tro:+r.tro||0,guild:!!r.guild};});
  [...rows].sort((a,b)=>b.worth-a.worth).forEach((r,i)=>r.rank=i+1);
  const k=lbSort.k,d=lbSort.d;rows.sort((a,b)=>((typeof a[k]==='string'?a[k].localeCompare(b[k]):a[k]-b[k])*d)||a.rank-b.rank);
@@ -1531,15 +1582,18 @@ function renderExchange(){
  let h='<div class="nyse"><div class="tape" aria-hidden="true"><div class="tapein">'+tapeItems+tapeItems+'</div></div>';
  h+='<div class="nyhead"><div><span class="big">MME</span><small>Medieval Merchants\u2019 Exchange</small></div><div class="clk">YOUR DAY '+S.day+'<br>'+season().n.toUpperCase()+'</div></div>';
  h+='<div class="idx"><span>INDEX <b class="'+cls(avgP)+'">'+fmtN(avg)+'g '+arr(avgP)+Math.abs(avgP).toFixed(2)+'%</b></span><span>LISTED <b>'+n+'</b></span><span>ADV <b class="up2">'+adv+'</b></span><span>DEC <b class="dn2">'+dec+'</b></span></div>';
- if(!DB)h+='<div class="nymsg">The Exchange is coming soon. Your shop will be listed here once online accounts launch.</div>';
+ if(!exOn())h+='<div class="nymsg">The trading floor isn’t open on this copy of the game.</div>';
  else if(!boardLoaded)h+='<div class="nymsg">'+(boardErr||'Opening the trading floor...')+'</div>';
  else if(!n)h+='<div class="nymsg">No shops listed yet. Sign in and finish a day to ring the opening bell.</div>';
  else{
   h+='<div class="nyscroll"><table class="nyt"><thead><tr>'+COLS.map(([ck,lab,left])=>'<th class="'+(left?'l ':'')+(k===ck?'on':'')+'" aria-sort="'+(k===ck?(d>0?'ascending':'descending'):'none')+'"><button data-sort="'+ck+'">'+lab+(k===ck?(d>0?' \u25b2':' \u25bc'):'')+'</button></th>').join('')+'</tr></thead><tbody>';
-  rows.forEach(r=>{h+='<tr class="'+(r.id===USERID?'me':'')+'"><td class="fl2">'+r.rank+'</td><td class="l tk">'+esc(r.tk)+(r.guild?' \u2655':'')+'</td><td class="l">'+esc(r.name)+'</td><td>'+fmtN(r.worth)+'g</td><td class="'+cls(r.chg)+'">'+(r.chg>0?'+':'')+fmtN(r.chg)+'</td><td class="'+cls(r.chg)+'">'+arr(r.chg)+' '+Math.abs(r.pct).toFixed(2)+'%</td><td>'+fmtN(r.purse)+'</td><td>'+r.day+'</td><td>'+r.level+'</td><td>'+r.rep+'</td><td>'+fmtN(r.trades)+'</td><td>'+r.thieves+'</td><td>'+r.crooks+'</td><td class="'+cls(r.best)+'">'+fmtN(r.best)+'</td><td>'+r.tro+'</td></tr>';});
+  rows.forEach(r=>{h+='<tr class="'+(EX_ME&&r.id===EX_ME?'me':'')+'"><td class="fl2">'+r.rank+'</td><td class="l tk">'+esc(r.tk)+(r.guild?' \u2655':'')+'</td><td class="l">'+esc(r.name)+'</td><td>'+fmtN(r.worth)+'g</td><td class="'+cls(r.chg)+'">'+(r.chg>0?'+':'')+fmtN(r.chg)+'</td><td class="'+cls(r.chg)+'">'+arr(r.chg)+' '+Math.abs(r.pct).toFixed(2)+'%</td><td>'+fmtN(r.purse)+'</td><td>'+r.day+'</td><td>'+r.level+'</td><td>'+r.rep+'</td><td>'+fmtN(r.trades)+'</td><td>'+r.thieves+'</td><td>'+r.crooks+'</td><td class="'+cls(r.best)+'">'+fmtN(r.best)+'</td><td>'+r.tro+'</td></tr>';});
   h+='</tbody></table></div>';
  }
- h+='<div class="nyfoot"><span>'+(S.username&&USERID?'Listed as <b style="color:#fff">'+esc(S.ticker)+'</b> ('+esc(S.username)+'). Net worth '+fmtN(netWorth())+'g.':S.username?'Trading as guest '+esc(S.username)+'. Not listed.':'Not signed in.')+'</span><span style="display:flex;gap:6px"><button class="btn sm blue" data-act="signin">'+(S.username?'Change name':'Sign in')+'</button>'+(S.username&&USERID&&DB?'<button class="btn sm" data-act="refreshboard">Update quote</button>':'')+'</span></div><p class="mk" style="color:#8a8a8a;margin:6px 10px 0;font-size:16px">Tap any column heading to sort. Change is net worth (coin plus stock at market) against your last closing day.</p></div>';
+ const listed=exListed(),signed=!!(exOn()&&ASESS);
+ const foot=listed?'Listed as <b style="color:#fff">'+esc(S.ticker)+'</b> ('+esc(S.username)+'). Net worth '+fmtN(netWorth())+'g.':signed&&S.username?esc(S.username)+'’s shop is not listed.':S.username?'Trading as guest '+esc(S.username)+'.'+(exOn()?' Sign in to list your shop.':''):'Not signed in.';
+ const btns=(signed||!exOn()?'<button class="btn sm blue" data-act="signin">'+(S.username?'Change name':'Choose a name')+'</button>':'<button class="btn sm blue" data-act="acctin">Sign in</button>')+(listed?'<button class="btn sm" data-act="refreshboard">Update quote</button><button class="btn sm" data-act="delist">Delist</button>':signed&&S.username?'<button class="btn sm green" data-act="relist">List my shop</button>':'');
+ h+='<div class="nyfoot"><span>'+foot+'</span><span style="display:flex;gap:6px;flex-wrap:wrap">'+btns+'</span></div><p class="mk" style="color:#8a8a8a;margin:6px 10px 0;font-size:16px">Tap any column heading to sort. Change is net worth (coin plus stock at market) against your last closing day.</p></div>';
  v.innerHTML=h;
 }
 $('v-exchange').addEventListener('click',e=>{const b=e.target.closest('[data-sort]');if(!b)return;const k=b.dataset.sort;if(lbSort.k===k)lbSort.d*=-1;else lbSort={k,d:(k==='tk'||k==='name'||k==='rank')?1:-1};renderExchange();});
@@ -1564,12 +1618,12 @@ function accDone(j,after,msg){
  if(changed)S=migrate(prof.save);
  $('modal').classList.remove('on');save();toast(msg);
  if(changed){accUpload().then(()=>setTimeout(()=>location.reload(),500));return;}
- accUpload();renderAll();
+ accUpload();postBoard(true);renderAll();
  if(!S.username)signIn(true,after);else if(after)after();
 }
 /** Signing out or deleting keeps the shop here, as a new separate player. */
 function accDetach(msg,keepModal){
- const prof=ACC.detach({player:ACC.playerId(),save:S});ACC.setPlayerId(prof.player);ASESS=null;clearTimeout(accT);accT=null;
+ const prof=ACC.detach({player:ACC.playerId(),save:S});ACC.setPlayerId(prof.player);ASESS=null;EX_ME='';clearTimeout(accT);accT=null;
  if(!keepModal)$('modal').classList.remove('on');save();toast(msg);renderAll();
 }
 function openAccount(mode,after){
@@ -1631,19 +1685,19 @@ function openProfile(){
 if(ACC)ACC.siteConfig().then(c=>{
  ACFG=c;if(!accReady())return;
  if(accArgs&&$('modal').classList.contains('on')&&$('unameIn')){const v=$('unameIn').value;signIn(accArgs[0],accArgs[1]);if($('unameIn'))$('unameIn').value=v;}
- if(ASESS)ACC.me().then(j=>{ASESS=ACC.loadSession();if(j.save&&S&&(j.save.t||0)>(S.t||0)){S=migrate(ACC.mergeSaves(S,j.save));save();accUpload().then(()=>location.reload());}else accUpload();renderAll();},e=>{if(e&&e.code==='signed_out')accDetach('You\u2019ve been signed out. Your shop stays on this device.',true);});
+ if(ASESS)ACC.me().then(j=>{ASESS=ACC.loadSession();if(j.save&&S&&(j.save.t||0)>(S.t||0)){S=migrate(ACC.mergeSaves(S,j.save));save();accUpload().then(()=>location.reload());}else{accUpload();postBoard(true);}renderAll();},e=>{if(e&&e.code==='signed_out')accDetach('You\u2019ve been signed out. Your shop stays on this device.',true);});
  renderAll();
 });
 function signIn(first,after){
- const hasId=!!(DB&&USERID),acc=accReady();accArgs=[first,after];
- const lead=hasId?'You\u2019re signed in. Choose the name regulars will greet you by. It is also your listing on the Exchange.':acc?'Choose the name regulars will greet you by.':'Choose the name regulars will greet you by. Online accounts and the Exchange are coming soon.';
- const accH=!acc||hasId?'':ASESS?'<p class="mk">Signed in as <b>'+esc(ASESS.account.email||'your account')+'</b>. <a class="aclink" id="acOpen" style="text-decoration:underline;cursor:pointer">Manage</a></p>':'<div class="acctbtns"><button class="btn blue" id="acOpen">Sign in or create an account</button></div><p class="mk orline">or play as guest</p>';
+ const acc=accReady(),hasId=!!(acc&&ASESS);accArgs=[first,after];
+ const lead=hasId?'Choose the name regulars will greet you by. It is also your listing on the Exchange.':acc?'Choose the name regulars will greet you by. Sign in to list your shop on the Exchange.':'Choose the name regulars will greet you by.';
+ const accH=!acc?'':ASESS?'<p class="mk">Signed in as <b>'+esc(ASESS.account.email||'your account')+'</b>. <a class="aclink" id="acOpen" style="text-decoration:underline;cursor:pointer">Manage</a></p>':'<div class="acctbtns"><button class="btn blue" id="acOpen">Sign in or create an account</button></div><p class="mk orline">or play as guest</p>';
  modal('<h2>'+(first?'Sign in, shopkeeper':'Your shopkeeper name')+'</h2><p>'+lead+'</p>'+accH+'<label>Shopkeeper name<input class="field" id="unameIn" maxlength="16" autocomplete="nickname" value="'+esc(S.username||'')+'"></label><p class="mk" id="unameErr" style="color:var(--red);min-height:1em;margin:0"></p>'+(!first&&S.username&&hasId?'<p class="mk" style="margin:4px 0 0">Ticker symbol: '+esc(S.ticker)+'</p>':''),
-  [...(first?[]:[{l:'Cancel'}]),...(!first&&hasId?[{l:'Delist me',c:'red',keep:true,f:()=>{DB.collection('board').doc(USERID).delete().then(()=>{toast('Your shop was removed from the Exchange.');},()=>toast('Couldn\u2019t reach the Exchange.'));S.username='';S.ticker='';save();$('modal').classList.remove('on');renderAll();signIn(true);}}]:[]),{l:hasId?'Sign in':ASESS?'Continue':'Play as guest',c:'green',keep:true,f:()=>{
+  [...(first?[]:[{l:'Cancel'}]),{l:hasId?(first?'Continue':'Save'):'Play as guest',c:'green',keep:true,f:()=>{
    const n=($('unameIn').value||'').trim().replace(/\s+/g,' ');
    if(n.length<2||!/^[A-Za-z0-9 _'.-]+$/.test(n)){$('unameErr').textContent='Use 2 to 16 letters, numbers, spaces or _ \' . -';return;}
    const changed=n!==S.username;S.username=n;if(changed||!S.ticker)S.ticker=makeTicker(n);S.uid=USERID;accArgs=null;save();$('modal').classList.remove('on');
-   if(hasId)postBoard(true);toast(hasId?'Welcome, '+n+'! Your shop is listed as '+S.ticker+'.':'Welcome, '+n+'!');renderAll();if(after)after();}}]);
+   if(hasId)postBoard(true);toast(exListed()?'Welcome, '+n+'! Your shop is listed as '+S.ticker+'.':'Welcome, '+n+'!');renderAll();if(after)after();}}]);
  if($('acOpen'))$('acOpen').onclick=()=>openAccount('in',after);
  setTimeout(()=>{const i=$('unameIn');if(i&&!first)i.focus();},60);
 }
@@ -1935,6 +1989,24 @@ function drawCustomer(c,now){
   const hp=palFor(CUR_ERA);if(c.show==='pouch')drawRows(sx,POUCH,px-2,py-12,2,hp);else drawRows(sx,(c.show==='scroll'?TAB.ledger:itemInfo(c.show).spr),px-6,py-20,2,hp);
   OR([[px,py,6,5]],skin);R(px,py+4,6,1,skD);}
 }
+/* Town guard who walks a caught thief away. handOnly draws just the hand on the thief's shoulder (on top). */
+function drawGuard(g,now,handOnly){
+ const e=era(),ox=Math.round(g.x),oy=(((now/420)|0))%2,cx=80+ox,hx=cx-9,hy=46+oy;
+ const skin='#e2b48a',skD=shade(skin,.82),modern=e>=3,cl=modern?'#1f2a44':'#7d1f1a',clD=shade(cl,.7),clL=shade(cl,1.25);
+ if(handOnly){R(cx+10,75+oy,9,5,K);R(cx+10,76+oy,8,3,cl);OR([[cx+18,74+oy,5,5]],skin);return;}
+ if(!modern){R(cx-21,4+oy,2,98,'#5a3a1e');R(cx-21,4+oy,1,98,'#7a5232');OR([[cx-23,-2+oy,6,7],[cx-25,4+oy,10,2]],'#9aa0a8');}
+ R(cx-15,69+oy,30,1,K);
+ for(let y=70;y<101;y++){const hw=Math.round(14+(y-70)*.28);R(cx-hw-1,y+oy,hw*2+2,1,K);R(cx-hw,y+oy,hw*2,1,cl);R(cx+hw-4,y+oy,4,1,clD);R(cx-hw,y+oy,2,1,clL);}
+ if(modern){R(cx-1,73+oy,2,27,'#0e1424');for(let i=0;i<4;i++)R(cx+2,76+oy+i*6,2,2,'#c9ccd4');OR([[cx-11,76+oy,4,5]],'#f2c14e');R(cx-16,90+oy,32,2,'#0e1424');}
+ else{R(cx-7,72+oy,14,29,'#f2c14e');R(cx-6,72+oy,12,29,'#2f4f7f');R(cx-1,77+oy,2,10,'#f2c14e');R(cx-4,80+oy,8,2,'#f2c14e');R(cx-16,92+oy,32,2,'#3a2416');}
+ R(cx-4,63+oy,8,8,skD);
+ OR([[hx+2,hy,14,1],[hx+1,hy+1,16,1],[hx,hy+2,18,15],[hx+1,hy+17,16,1],[hx+3,hy+18,12,1],[hx+5,hy+19,8,1]],skin);
+ R(hx+15,hy+3,2,13,skD);
+ const ey=hy+8;[hx+3,hx+12].forEach((ex,i)=>{R(ex,ey,3,2,'#f4f0e6');R(ex+1+(i?0:1),ey,1,2,K);R(ex,ey-2,3,1,'#4a3020');});
+ R(hx+8,hy+10,2,3,skD);R(hx+4,hy+13,10,2,'#4a3020');R(hx+7,hy+16,4,1,'#7d3a2a');
+ if(modern){OR([[hx-1,hy-4,20,6],[hx-3,hy+1,24,2]],'#1a2236');R(hx+7,hy-3,4,3,'#f2c14e');R(hx-3,hy+2,24,1,'#0a0e18');}
+ else{OR([[hx-2,hy-4,22,8],[hx-6,hy+3,30,2]],'#9aa0a8');R(hx,hy-3,10,1,'#d6dbe2');R(hx-6,hy+4,30,1,'#6b7078');}
+}
 function litCustomer(c){
  const cx=80+Math.round(c.x);OX.globalCompositeOperation='source-atop';
  let g=OX.createLinearGradient(cx-26,0,cx+26,0);g.addColorStop(0,'rgba(255,225,170,.32)');g.addColorStop(.42,'rgba(255,225,170,0)');g.addColorStop(.62,'rgba(20,10,40,0)');g.addColorStop(1,'rgba(20,10,40,.42)');OX.fillStyle=g;OX.fillRect(0,0,160,112);
@@ -1985,13 +2057,14 @@ let last=performance.now();
 function frame(now){
  if(paused){last=now;requestAnimationFrame(frame);return;}
  const dt=Math.min(50,now-last);last=now;
- idleTick(dt);
+ idleTick(dt);catTick(dt);
  WALK.forEach(w=>{w.x+=w.v*dt;if(w.x>166)w.x=-6;if(w.x<-6)w.x=166;});
  const tgt=S.phase==='open'?0:1;shut+=(tgt-shut)*Math.min(1,dt/180);
  const c=cust;
  if(c){
-  if(c.state==='leaving'&&now>=c.leaveAt){c.state='out';c.target=150;$('bubble').classList.add('hide');renderTrade();}
-  const sp=dt*(c.kind==='thief'?.5:.32);
+  if(c.escort){const g=c.escort,tx=c.x-28,gs=dt*(c.state==='out'?.07:.14);if(g.x<tx)g.x=Math.min(tx,g.x+gs);else if(g.x>tx)g.x=Math.max(tx,g.x-gs);if(Math.abs(g.x-tx)<1)g.ready=true;}
+  if(c.state==='leaving'&&now>=c.leaveAt&&(!c.escort||c.escort.ready)){c.state='out';c.target=150;$('bubble').classList.add('hide');renderTrade();}
+  const sp=dt*(c.escort&&c.state==='out'?.05:c.kind==='thief'?.5:.32);
   if(c.x<c.target)c.x=Math.min(c.target,c.x+sp);else if(c.x>c.target)c.x=Math.max(c.target,c.x-sp);
   if(c.state==='in'&&c.x===c.target){c.state='idle';arrived(c);}
   else if(c.state==='out'&&c.x>=c.target){cust=null;renderAll();setTimeout(nextCustomer,450);}
@@ -2001,8 +2074,8 @@ function frame(now){
  blurOnto(bgc,.55,false);blurOnto(bgc,.45,true);
  {const si=skyIdx();MAIN.globalCompositeOperation='multiply';MAIN.fillStyle=era()===4?(si===3?'#6a5a9a':'#a890c0'):si===3?'#5a5890':si===2?'#c49488':si===1?'#b4b4c8':'#a8a8c0';MAIN.fillRect(0,0,320,224);MAIN.globalCompositeOperation='source-over';}
  MAIN.setTransform(2,0,0,2,0,0);sx=MAIN;
- if(cust){const ccx=80+Math.round(cust.x);glow(ccx,90,34,'rgba(0,0,0,.45)');
-  OX.setTransform(1,0,0,1,0,0);OX.clearRect(0,0,320,224);OX.setTransform(2,0,0,2,0,0);sx=OX;drawCustomer(cust,now);litCustomer(cust);sx=MAIN;
+ if(cust){const ccx=80+Math.round(cust.x);glow(ccx,90,34,'rgba(0,0,0,.45)');if(cust.escort)glow(80+Math.round(cust.escort.x),90,34,'rgba(0,0,0,.45)');
+  OX.setTransform(1,0,0,1,0,0);OX.clearRect(0,0,320,224);OX.setTransform(2,0,0,2,0,0);sx=OX;if(cust.escort)drawGuard(cust.escort,now,false);drawCustomer(cust,now);if(cust.escort)drawGuard(cust.escort,now,true);litCustomer(cust);sx=MAIN;
   rimLight();MAIN.setTransform(1,0,0,1,0,0);MAIN.drawImage(off,0,0);MAIN.setTransform(2,0,0,2,0,0);}
  drawFront(now);
  drawFgProps(now);blurOnto(fgc,1,false);

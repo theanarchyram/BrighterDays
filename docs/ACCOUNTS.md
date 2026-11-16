@@ -34,12 +34,25 @@ The settings page also shows how many accounts exist.
 - A player ID that already belongs to an account can't be claimed by a second account ("Sign in to that account instead").
 - **Backups:** while a player is signed in, the game backs up the shop about every 20 seconds of play and when the tab is hidden. If another device saved since, the server sends its newer copy back instead of overwriting. The game merges the two and tries again.
 
+## The Exchange
+
+The Exchange (the shop leaderboard) runs on the plugin too, so it only opens where accounts are switched on.
+
+- **Watching:** everyone can see the board, guests included.
+- **Being listed:** only players signed into an account are listed. Their shop is listed automatically once they have a shopkeeper name, and is updated every 30 seconds of play and at the end of each day.
+- **Leaving:** players can take their shop off with **Delist** and put it back with **List my shop**, both on the Exchange screen.
+- **Validation:** the plugin cleans every listing: names follow the same rules as in the game, numbers are clamped, and unknown fields are dropped.
+- **Row IDs:** each row has a salted hash for its ID, so the board never reveals player IDs.
+- **Deleting an account** also removes its listing.
+
 ## Server
 
 REST namespace `brighter-days/v1`. Every account route is POST, open to everyone, and limited to 30 requests a minute per address (the limit key is a short-lived hash, so addresses are never stored). The session token goes in the request body, never in cookies, because the game runs in an iframe.
 
 - `GET /config`: tells the game whether accounts are on.
 - `POST /account/`: `register`, `login`, `me`, `logout`, `delete`, `password`, `reset-request`, `reset`, `save`.
+- `GET /board`: the Exchange, richest first (up to 300 shops).
+- `POST /board/`: `post` (list or update your shop) and `delist`. Both need a signed-in session.
 
 After sign-in, every response returns `{ token, account: { email, player, created }, save, saved }`.
 
@@ -47,6 +60,7 @@ After sign-in, every response returns `{ token, account: { email, player, create
 
 - `bd_accounts`: id, email (unique), pass_hash, player_id (unique), save, save_updated, created, last_login.
 - `bd_sessions`: token_hash (primary key), account_id, created, expires.
+- `bd_board`: player_id (primary key), worth, data (the cleaned listing), updated.
 
 ### Security rules
 - **Passwords:** hashed with `wp_hash_password`, at least 8 characters. At most 10 tries per 15 minutes per email, counted in a transient keyed on a salted hash.
@@ -64,7 +78,8 @@ In the game, go to **Menu > Account > Manage > Delete account** and type `DELETE
 
 - the account;
 - its sessions;
-- the saved copy of the shop.
+- the saved copy of the shop;
+- its Exchange listing.
 
 The plugin also fires `do_action( 'brighter_days_account_deleted', $player_id, $account_id )`. Any future scores, friends or backups tables must hook into it and delete the player's rows. The shop stays on the device as a guest.
 
@@ -75,9 +90,8 @@ The plugin adds suggested text under **Settings > Privacy > Policy guide**. Your
 - the email address;
 - a hashed password;
 - the game save;
-- the shopkeeper name.
-
-There is no online leaderboard or score table in the plugin yet. When the Exchange moves to the plugin, add the leaderboard name and scores to the policy and to the deletion hook.
+- the shopkeeper name;
+- the Exchange listing (name, ticker and shop scores), which other players can see.
 
 ## Testing
 - `php tests/php/run-tests.php`: register, login, lockout, sessions, save conflicts, email and password changes, reset codes and deletion. No WordPress needed.

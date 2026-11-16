@@ -152,6 +152,29 @@ class BD_Memory_Store {
 			}
 		}
 	}
+	public $board = array();
+	public function board_put( $pid, $worth, $data, $updated ) {
+		$this->board[ $pid ] = array(
+			'player_id' => $pid,
+			'worth'     => $worth,
+			'data'      => $data,
+			'updated'   => $updated,
+		);
+		return true;
+	}
+	public function board_list( $limit ) {
+		$rows = array_values( $this->board );
+		usort(
+			$rows,
+			function ( $a, $b ) {
+				return $b['worth'] <=> $a['worth'];
+			}
+		);
+		return array_slice( $rows, 0, $limit );
+	}
+	public function board_delete( $pid ) {
+		unset( $this->board[ $pid ] );
+	}
 }
 
 require dirname( __DIR__, 2 ) . '/wordpress-plugin/brighter-days/includes/accounts.php';
@@ -314,17 +337,55 @@ bd_h_reset_request( array( 'email' => 'new@example.com' ) );
 $GLOBALS['t_transients'][ $key ][0]['exp'] = time() - 1;
 check( 'bd_code' === code_of( bd_h_reset( array( 'email' => 'new@example.com', 'code' => mail_code(), 'password' => 'anotherpass1' ) ) ), 'expired code refused' );
 
+/* ---------- The Exchange ---------- */
+
+fresh();
+update_option( 'brighter_days_accounts', '1' );
+check( array( 'rows' => array() ) === bd_h_board( array() ), 'empty board lists nothing' );
+check( 'bd_signed_out' === code_of( bd_h_board_post( array( 'entry' => array( 'name' => 'Ghost' ) ) ) ), 'listing needs a signed-in account' );
+$b1 = bd_h_register( array( 'email' => 'b1@example.com', 'password' => 'longenough', 'player' => 'p_board00001' ) );
+$b2 = bd_h_register( array( 'email' => 'b2@example.com', 'password' => 'longenough', 'player' => 'p_board00002' ) );
+check( 'bd_name' === code_of( bd_h_board_post( array( 'token' => $b1['token'], 'entry' => array( 'name' => '<b>x</b>' ) ) ) ), 'bad shop name refused' );
+check( 'bd_entry' === code_of( bd_h_board_post( array( 'token' => $b1['token'], 'entry' => 'nope' ) ) ), 'non-object listing refused' );
+$p1 = bd_h_board_post(
+	array(
+		'token' => $b1['token'],
+		'entry' => array(
+			'name'   => 'Tess',
+			'ticker' => 'te$s!',
+			'worth'  => 900,
+			'rep'    => 250,
+			'day'    => -5,
+			'tro'    => 5000,
+			'extra'  => 'dropped',
+		),
+	)
+);
+check( ! is_wp_error( $p1 ) && preg_match( '/^[0-9a-f]{16}$/', $p1['id'] ), 'listing returns a public id' );
+bd_h_board_post( array( 'token' => $b2['token'], 'entry' => array( 'name' => 'Bram', 'worth' => 1500 ) ) );
+bd_h_board_post( array( 'token' => $b2['token'], 'entry' => array( 'name' => 'Bram', 'worth' => 1600 ) ) );
+$rows = bd_h_board( array() )['rows'];
+check( 2 === count( $rows ) && 'Bram' === $rows[0]['name'] && 1600 === $rows[0]['worth'], 'one row per player, richest first, updates replace' );
+check( 'TES' === $rows[1]['ticker'] && 100 === $rows[1]['rep'] && 1 === $rows[1]['day'] && 999 === $rows[1]['tro'], 'values are cleaned and clamped' );
+check( ! isset( $rows[1]['extra'] ) && $p1['id'] === $rows[1]['id'], 'unknown fields dropped, id matches' );
+check( false === strpos( wp_json_encode( $rows ), 'p_board' ), 'player IDs are never shown' );
+bd_h_board_delist( array( 'token' => $b1['token'] ) );
+$rows = bd_h_board( array() )['rows'];
+check( 1 === count( $rows ) && 'Bram' === $rows[0]['name'], 'delist removes only your own shop' );
+
 /* ---------- Deletion ---------- */
 
 fresh();
 update_option( 'brighter_days_accounts', '1' );
 $d1 = bd_h_register( array( 'email' => 'gone@example.com', 'password' => 'longenough', 'player' => 'p_device00010' ) );
+bd_h_board_post( array( 'token' => $d1['token'], 'entry' => array( 'name' => 'Goner', 'worth' => 5 ) ) );
 $d2 = bd_h_login( array( 'email' => 'gone@example.com', 'password' => 'longenough' ) );
 check( 'bd_confirm' === code_of( bd_h_delete( array( 'token' => $d1['token'], 'confirm' => 'yes' ) ) ), 'delete needs DELETE' );
 check( ! is_wp_error( bd_h_delete( array( 'token' => $d1['token'], 'confirm' => 'DELETE' ) ) ), 'delete succeeds' );
 $st = $GLOBALS['bd_account_store'];
 check( null === $st->account_by( 'player_id', 'p_device00010' ) && 0 === $st->count_accounts(), 'account row removed' );
 check( 'bd_signed_out' === code_of( bd_h_me( array( 'token' => $d2['token'] ) ) ) && 0 === count( $st->sessions ), 'all sessions removed' );
+check( array() === bd_h_board( array() )['rows'], 'the Exchange listing is removed' );
 check( 'brighter_days_account_deleted' === $GLOBALS['t_actions'][0][0] && 'p_device00010' === $GLOBALS['t_actions'][0][1][0], 'deletion hook fires with the player ID for scores, friends and backups' );
 check( ! is_wp_error( bd_h_register( array( 'email' => 'gone@example.com', 'password' => 'longenough', 'player' => 'p_device00011' ) ) ), 'the email can be used again after deletion' );
 

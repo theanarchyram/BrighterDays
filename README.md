@@ -28,7 +28,7 @@ When played through the WordPress plugin, players can create an account in the g
 
 ## Coming later
 
-These are on the deployment task list: the Exchange leaderboard and sending bug reports. Guest saves stay on each device, in three slots.
+Signed-in players are listed on the Exchange leaderboard. Still on the deployment task list: sending bug reports. Guest saves stay on each device, in three slots.
 
 ## Credits
 

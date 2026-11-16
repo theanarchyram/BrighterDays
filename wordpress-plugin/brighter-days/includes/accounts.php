@@ -13,7 +13,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'BD_ACC_DB_VERSION', '2' );
+define( 'BD_ACC_DB_VERSION', '3' );
+define( 'BD_BOARD_MAX', 300 );
 define( 'BD_ACC_NS', 'brighter-days/v1' );
 define( 'BD_SESSION_TTL', 120 * DAY_IN_SECONDS );
 define( 'BD_SAVE_MAX', 300 * 1024 );
@@ -29,12 +30,14 @@ class BD_WP_Account_Store {
 	private $db;
 	private $a;
 	private $s;
+	private $b;
 
 	public function __construct() {
 		global $wpdb;
 		$this->db = $wpdb;
 		$this->a  = $wpdb->prefix . 'bd_accounts';
 		$this->s  = $wpdb->prefix . 'bd_sessions';
+		$this->b  = $wpdb->prefix . 'bd_board';
 	}
 
 	public function install() {
@@ -63,6 +66,16 @@ class BD_WP_Account_Store {
   expires bigint(20) unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY  (token_hash),
   KEY account_id (account_id)
+) $c;"
+		);
+		dbDelta(
+			"CREATE TABLE {$this->b} (
+  player_id varchar(64) NOT NULL,
+  worth bigint(20) NOT NULL DEFAULT 0,
+  data text NOT NULL,
+  updated bigint(20) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY  (player_id),
+  KEY worth (worth)
 ) $c;"
 		);
 		// Version 1 had a table for Google, Apple and Microsoft sign-ins, which are gone.
@@ -127,6 +140,27 @@ class BD_WP_Account_Store {
 
 	public function purge_sessions( $now ) {
 		$this->db->query( $this->db->prepare( "DELETE FROM {$this->s} WHERE expires < %d", $now ) );
+	}
+
+	public function board_put( $player_id, $worth, $data, $updated ) {
+		return false !== $this->db->replace(
+			$this->b,
+			array(
+				'player_id' => $player_id,
+				'worth'     => $worth,
+				'data'      => $data,
+				'updated'   => $updated,
+			),
+			array( '%s', '%d', '%s', '%d' )
+		);
+	}
+
+	public function board_list( $limit ) {
+		return (array) $this->db->get_results( $this->db->prepare( "SELECT * FROM {$this->b} ORDER BY worth DESC LIMIT %d", $limit ), ARRAY_A );
+	}
+
+	public function board_delete( $player_id ) {
+		$this->db->delete( $this->b, array( 'player_id' => $player_id ) );
 	}
 }
 
@@ -350,6 +384,7 @@ function bd_h_delete( $p ) {
 	}
 	/** Lets other parts of the site remove this player's scores, friends and backups. */
 	do_action( 'brighter_days_account_deleted', (string) $me['player_id'], (int) $me['id'] );
+	bd_store()->board_delete( (string) $me['player_id'] );
 	bd_store()->delete_account( (int) $me['id'] );
 	return array( 'ok' => true );
 }
@@ -511,6 +546,90 @@ function bd_h_save( $p ) {
 	return array( 'saved' => $now );
 }
 
+/* ---------- The Exchange (shop leaderboard) ---------- */
+
+/** Public row id: a salted hash, so the board never reveals player IDs. */
+function bd_board_id( $player_id ) {
+	return substr( hash_hmac( 'sha256', (string) $player_id, wp_salt( 'nonce' ) ), 0, 16 );
+}
+
+function bd_int( $v, $min, $max ) {
+	$n = is_numeric( $v ) ? (int) round( (float) $v ) : 0;
+	return max( $min, min( $max, $n ) );
+}
+
+/** Cleans a listing from the game. Returns the clean array or WP_Error. */
+function bd_clean_entry( $e ) {
+	if ( ! is_array( $e ) ) {
+		return bd_err( 'entry', 'That listing isn\'t valid.' );
+	}
+	$name = trim( preg_replace( '/\s+/', ' ', (string) ( $e['name'] ?? '' ) ) );
+	if ( strlen( $name ) < 2 || strlen( $name ) > 16 || ! preg_match( '/^[A-Za-z0-9 _\'.-]+$/', $name ) ) {
+		return bd_err( 'name', 'Choose a shopkeeper name of 2 to 16 letters, numbers, spaces or _ \' . -' );
+	}
+	$ticker = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) ( $e['ticker'] ?? '' ) ) );
+	$ticker = substr( '' === $ticker ? strtoupper( substr( preg_replace( '/[^A-Za-z0-9]/', '', $name ), 0, 4 ) ) : $ticker, 0, 5 );
+	$big    = 1000000000000;
+	return array(
+		'name'    => $name,
+		'ticker'  => $ticker,
+		'worth'   => bd_int( $e['worth'] ?? 0, -$big, $big ),
+		'prev'    => bd_int( $e['prev'] ?? 0, -$big, $big ),
+		'purse'   => bd_int( $e['purse'] ?? 0, -$big, $big ),
+		'day'     => bd_int( $e['day'] ?? 1, 1, 1000000 ),
+		'level'   => bd_int( $e['level'] ?? 1, 1, 10000 ),
+		'rep'     => bd_int( $e['rep'] ?? 0, 0, 100 ),
+		'trades'  => bd_int( $e['trades'] ?? 0, 0, $big ),
+		'thieves' => bd_int( $e['thieves'] ?? 0, 0, $big ),
+		'crooks'  => bd_int( $e['crooks'] ?? 0, 0, $big ),
+		'best'    => bd_int( $e['best'] ?? 0, -$big, $big ),
+		'tro'     => bd_int( $e['tro'] ?? 0, 0, 999 ),
+		'guild'   => ! empty( $e['guild'] ),
+	);
+}
+
+/** Lists the shops on the Exchange, richest first. Anyone can read it. */
+function bd_h_board( $p ) {
+	$rows = array();
+	foreach ( bd_store()->board_list( BD_BOARD_MAX ) as $r ) {
+		$d = json_decode( (string) $r['data'], true );
+		if ( ! is_array( $d ) ) {
+			continue;
+		}
+		$d['id']        = bd_board_id( $r['player_id'] );
+		$d['updatedAt'] = (int) $r['updated'];
+		$rows[]         = $d;
+	}
+	return array( 'rows' => $rows );
+}
+
+/** Lists or updates the signed-in player's shop. */
+function bd_h_board_post( $p ) {
+	$me = bd_auth( $p );
+	if ( is_wp_error( $me ) ) {
+		return $me;
+	}
+	$e = bd_clean_entry( $p['entry'] ?? null );
+	if ( is_wp_error( $e ) ) {
+		return $e;
+	}
+	bd_store()->board_put( (string) $me['player_id'], $e['worth'], wp_json_encode( $e ), time() );
+	return array(
+		'ok' => true,
+		'id' => bd_board_id( $me['player_id'] ),
+	);
+}
+
+/** Takes the signed-in player's shop off the Exchange. */
+function bd_h_board_delist( $p ) {
+	$me = bd_auth( $p );
+	if ( is_wp_error( $me ) ) {
+		return $me;
+	}
+	bd_store()->board_delete( (string) $me['player_id'] );
+	return array( 'ok' => true );
+}
+
 /* ---------- WordPress wiring ---------- */
 
 function bd_account_routes() {
@@ -524,6 +643,8 @@ function bd_account_routes() {
 		'account/reset-request' => 'bd_h_reset_request',
 		'account/reset'         => 'bd_h_reset',
 		'account/save'          => 'bd_h_save',
+		'board/post'            => 'bd_h_board_post',
+		'board/delist'          => 'bd_h_board_delist',
 	);
 }
 
@@ -532,7 +653,7 @@ function bd_rest_dispatch( $handler, $route, $request ) {
 	if ( is_wp_error( $limit ) ) {
 		return $limit;
 	}
-	if ( 'config' !== $route && ! bd_accounts_on() ) {
+	if ( 'config' !== $route && 'board' !== $route && ! bd_accounts_on() ) {
 		return bd_err( 'off', 'Accounts are switched off on this site.', 403 );
 	}
 	$body = $request->get_json_params();
@@ -557,6 +678,17 @@ function bd_register_account_routes() {
 			'permission_callback' => '__return_true',
 			'callback'            => function ( $req ) {
 				return bd_rest_dispatch( 'bd_h_config', 'config', $req );
+			},
+		)
+	);
+	register_rest_route(
+		BD_ACC_NS,
+		'/board',
+		array(
+			'methods'             => 'GET',
+			'permission_callback' => '__return_true',
+			'callback'            => function ( $req ) {
+				return bd_rest_dispatch( 'bd_h_board', 'board', $req );
 			},
 		)
 	);
@@ -609,7 +741,7 @@ function bd_accounts_privacy_text() {
 	}
 	wp_add_privacy_policy_content(
 		'Brighter Days',
-		'<p>Brighter Days can be played without an account. If you create one, we store: your email address, a hashed password, your game save, and your shopkeeper name. Sign-in sessions are stored as one-way hashes. We do not store your IP address; rate limits use short-lived hashed keys. You can delete your account in the game (Menu, Account, Delete account), which removes the account, its sessions and the saved game from our server.</p>'
+		'<p>Brighter Days can be played without an account. If you create one, we store: your email address, a hashed password, your game save, your shopkeeper name, and your shop\'s listing on the Exchange leaderboard (name, ticker and shop scores, which other players can see). Sign-in sessions are stored as one-way hashes. We do not store your IP address; rate limits use short-lived hashed keys. You can take your shop off the Exchange at any time, and you can delete your account in the game (Menu, Account, Delete account), which removes the account, its sessions, the saved game and the Exchange listing from our server.</p>'
 	);
 }
 add_action( 'admin_init', 'bd_accounts_privacy_text' );

@@ -4,7 +4,7 @@
  * Plugin URI:        https://github.com/theanarchyram/BrighterDays
  * Description:       Adds the Brighter Days shopkeeper game to your site. Use [brighter_days] to embed the game and [brighter_days_banner] for the animated ad banner. The game ships inside the plugin and updates itself from GitHub releases.
  * Update URI:        https://github.com/theanarchyram/BrighterDays
- * Version:           1.3.0
+ * Version:           1.4.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            LeverOne Studios
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'BRIGHTER_DAYS_VERSION', '1.3.0' );
+define( 'BRIGHTER_DAYS_VERSION', '1.4.0' );
 define( 'BRIGHTER_DAYS_REPO', 'theanarchyram/BrighterDays' );
 
 require_once __DIR__ . '/includes/accounts.php';
